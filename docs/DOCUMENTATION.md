@@ -65,3 +65,12 @@ all administration: existing sessions survive. Clarified successful login counte
 reset and the limited mobile/desktop accessibility coverage. Added route contract
 and architecture rationale. This audit did not certify live administrative setup,
 branch protection, production deployment identity or manual accessibility.
+
+## Preview configuration follow-up
+
+The preview build failed before compilation because the explicit `previews`
+block was missing. The configuration now uses a separate D1 UUID and a dedicated
+migration config. Verify the Preview and migration UUIDs match each other and
+differ from production when reviewing changes. Remote migration execution and
+Preview health require separate operational evidence; a valid configuration or
+successful upload alone is insufficient.

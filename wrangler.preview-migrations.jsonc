@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "slotiva-preview-migrations",
+  "compatibility_date": "2026-10-19",
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "slotiva-preview-db",
+      "database_id": "77552831-ed97-4662-830a-2c7b318add96",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

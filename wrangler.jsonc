@@ -20,4 +20,15 @@
     },
   ],
   "vars": { "COOKIE_SECURE": "true" },
+  "previews": {
+    "vars": { "COOKIE_SECURE": "true" },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "slotiva-preview-db",
+        "database_id": "77552831-ed97-4662-830a-2c7b318add96",
+        "migrations_dir": "migrations"
+      }
+    ]
+  },
 }

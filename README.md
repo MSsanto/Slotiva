@@ -61,45 +61,35 @@ For Workers Builds connected to GitHub, use repository root `/`, deploy command 
 Preview deployments must use an isolated preview database before allowing writes; do not enable preview URLs against the production D1 binding.
 
 
-### Preview build failure: missing previews block
+### Preview configuration and migrations
 
-Workers Builds runs `npx wrangler preview` for non-production branches. This
-command needs an explicit `previews` block; `preview_urls: false` does not
-configure Preview resource bindings. Do not copy the production D1 UUID into it.
+Workers Builds runs `npx wrangler preview` for non-production branches. The
+explicit `previews` block in `wrangler.jsonc` binds `DB` to
+`slotiva-preview-db` (`77552831-ed97-4662-830a-2c7b318add96`), separately from
+production `slotiva-db`. `COOKIE_SECURE` remains true in Previews.
 
-Provision a separate D1 database named `slotiva-preview-db` in the dashboard or
-with `npx wrangler d1 create slotiva-preview-db`. Then add the following block
-to `wrangler.jsonc`, replacing the example value with that database's real UUID:
-
-```json
-{
-  "previews": {
-    "vars": { "COOKIE_SECURE": "true" },
-    "d1_databases": [
-      {
-        "binding": "DB",
-        "database_name": "slotiva-preview-db",
-        "database_id": "<PREVIEW_DATABASE_UUID>"
-      }
-    ]
-  }
-}
-```
-
-For remote Preview migrations, use a separate Wrangler config with the same
-Preview database UUID at top-level `d1_databases`, binding `PREVIEW_DB`, and
-`migrations_dir: "migrations"`. Apply it explicitly:
+The separate `wrangler.preview-migrations.jsonc` targets that same Preview
+UUID through the `PREVIEW_DB` binding. Before testing bookings, initialize its
+schema from an authenticated checkout of this branch:
 
 ```bash
 npx wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.jsonc
 ```
 
-Do not use `npm run db:remote` for this step: it targets production. After the
-Preview schema is initialized, commit the Preview configuration and retry the
-branch build. Preview admin login also needs a separate Preview secret; do not
-assume the production password secret is inherited. A single Preview database
-isolates previews from production, but all previews using its UUID share data.
-Use fictional data only.
+This command is an explicit remote database change. Do not use
+`npm run db:remote` for Preview migrations: it targets production. Migration
+configuration being committed does not prove that the remote schema was applied.
+Once migrations succeed, retry the branch build and check `/api/health` on the
+resulting Preview URL, then verify a fictional booking/cancellation.
+
+Preview admin login requires a separately configured Preview password hash;
+production secret inheritance is not assumed. All Previews using this UUID
+share data with each other, but not with production. Use fictional data only.
+
+The missing-`previews` error occurs before the application custom build. Both
+the explicit resource binding and a remotely initialized schema are necessary
+for a usable booking Preview. `preview_urls: false` is not a substitute for the
+`previews` block and does not itself configure resource isolation.
 
 Reference: [Cloudflare Preview resources and D1 migrations](https://developers.cloudflare.com/workers/previews/resources/).
 
