@@ -5,54 +5,31 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: slotiva
-          POSTGRES_PASSWORD: ci-only-password
-          POSTGRES_DB: slotiva_test
-        ports: [5432:5432]
-        options: >-
-          --health-cmd "pg_isready -U slotiva -d slotiva_test"
-          --health-interval 3s --health-timeout 3s --health-retries 20
-    env:
-      TEST_DATABASE_URL: postgresql://slotiva:ci-only-password@localhost:5432/slotiva_test
-      DATABASE_URL: postgresql://slotiva:ci-only-password@localhost:5432/slotiva_test
-      PYTHONPATH: backend
-      COOKIE_SECURE: 'false'
-      ALLOWED_ORIGINS: http://localhost:5173
-      ADMIN_PASSWORD_HASH: ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
       - run: npm ci
-      - run: pip install -r backend/requirements-dev.txt
-      - run: ruff check backend
-      - run: ruff format --check backend
       - run: npm run format:check
       - run: npm run lint
       - run: npm test
+      - run: npm run test:worker
       - run: npm run build
-      - run: python -m pytest -q
+      - run: npx wrangler deploy --dry-run --outdir .wrangler/dry-run
       - run: npx playwright install --with-deps chromium
-      - name: Start API and run end-to-end tests
+      - name: Initialize isolated local D1 and run browser tests
         run: |
-          export ADMIN_PASSWORD_HASH=$(python -c "from slotiva.security import password_hash; print(password_hash('test-password-long'))")
-          python -m slotiva.db
-          uvicorn slotiva.main:app --port 8000 --no-access-log &
-          for attempt in $(seq 1 30); do curl -fsS http://localhost:8000/api/health && break || sleep 1; done
+          node scripts/test-env.mjs
+          npm run db:local
+          npm run dev:api -- --ip 127.0.0.1 --var COOKIE_SECURE:false > /tmp/slotiva-api.log 2>&1 &
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/api/health && break || sleep 1; done
           npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-results
-          path: test-results/
+          path: |
+            test-results/
+            /tmp/slotiva-api.log

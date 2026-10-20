@@ -1,0 +1,3 @@
+# Local HTTP only. Generate a hash using npm run admin:hash.
+COOKIE_SECURE=false
+ADMIN_PASSWORD_HASH=

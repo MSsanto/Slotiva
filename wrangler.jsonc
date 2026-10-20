@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "slotiva",
+  "preview_urls": false,
+  "main": "worker/index.ts",
+  "build": { "command": "npm run build" },
+  "compatibility_date": "2026-10-19",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "slotiva-db",
+      "database_id": "64f5ebf5-6e63-4328-b867-9462a5a97257",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": { "COOKIE_SECURE": "true" },
+}

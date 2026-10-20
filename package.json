@@ -1,16 +1,22 @@
 {
   "name": "slotiva",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.worker.json && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run src",
     "test:e2e": "playwright test",
-    "format:check": "prettier --check src e2e playwright.config.ts vite.config.ts"
+    "format:check": "prettier --check src worker worker-tests e2e scripts playwright.config.ts vite.config.ts",
+    "dev:api": "wrangler dev --port 8787",
+    "deploy": "npm run build && wrangler deploy",
+    "db:local": "wrangler d1 migrations apply slotiva-db --local",
+    "db:remote": "wrangler d1 migrations apply slotiva-db --remote",
+    "admin:hash": "node scripts/admin-hash.mjs",
+    "test:worker": "vitest run worker-tests"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
@@ -23,15 +29,19 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
+    "@cloudflare/workers-types": "^5.20261019.1",
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "esbuild": "^0.28.2",
+    "miniflare": "^5.20261019.0-beta",
     "oxlint": "^1.88.0",
     "prettier": "^3.9.10",
     "typescript": "~7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.2"
   }
 }

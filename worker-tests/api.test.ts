@@ -1,0 +1,283 @@
+import { readFile } from "node:fs/promises";
+import { build } from "esbuild";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
+import { passwordHash } from "../worker/security";
+import { today } from "../worker/booking";
+let mf: Miniflare;
+let db: D1Database;
+const base = "http://localhost";
+const origin = { Origin: base };
+function day() {
+  const d = new Date(`${today()}T12:00:00Z`);
+  do {
+    d.setUTCDate(d.getUTCDate() + 1);
+  } while ([0, 6].includes(d.getUTCDay()));
+  return d.toISOString().slice(0, 10);
+}
+const payload = (time = "09:00", serviceId = "consulting") => ({
+  serviceId,
+  date: day(),
+  time,
+  name: "Demo",
+  email: "demo@example.com",
+});
+function request(
+  path: string,
+  method = "GET",
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
+  return mf.dispatchFetch(base + path, {
+    method,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...headers,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+}
+async function admin() {
+  const r = await request(
+    "/api/admin/login",
+    "POST",
+    { password: "test-password-long" },
+    origin,
+  );
+  expect(r.status).toBe(204);
+  return { ...origin, Cookie: r.headers.get("Set-Cookie")!.split(";")[0] };
+}
+beforeAll(async () => {
+  const bundle = await build({
+    entryPoints: ["worker/index.ts"],
+    bundle: true,
+    write: false,
+    format: "esm",
+    platform: "browser",
+  });
+  mf = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: true,
+      script: bundle.outputFiles[0].text,
+      compatibilityDate: "2026-10-19",
+      d1Databases: ["DB"],
+      bindings: {
+        COOKIE_SECURE: "false",
+        ADMIN_PASSWORD_HASH: await passwordHash("test-password-long"),
+      },
+      host: "127.0.0.1",
+    }),
+  );
+  db = await mf.getD1Database("DB");
+  // D1 exec treats newline-separated input as separate statements; keep the full migration on one line.
+  const sql = await readFile("migrations/0001_initial.sql", "utf8");
+  await db.exec(sql.replace(/--.*$/gm, "").replace(/\s+/g, " "));
+}, 30000);
+afterAll(async () => {
+  await mf?.dispose();
+});
+beforeEach(async () => {
+  await db.batch([
+    db.prepare("DELETE FROM occupied_slots"),
+    db.prepare("DELETE FROM bookings"),
+    db.prepare("DELETE FROM sessions"),
+    db.prepare("DELETE FROM login_attempts"),
+    db.prepare(
+      "UPDATE weekly_hours SET opens=540,closes=1020,enabled=CASE WHEN weekday<5 THEN 1 ELSE 0 END",
+    ),
+  ]);
+});
+describe("Cloudflare Worker + D1", () => {
+  it("accepts only one of two simultaneous reservations", async () => {
+    const results = await Promise.all([
+      request("/api/bookings", "POST", payload()),
+      request("/api/bookings", "POST", payload()),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(
+      (await db
+        .prepare("SELECT count(*) AS n FROM bookings")
+        .first<{ n: number }>())!.n,
+    ).toBe(1);
+    expect(
+      (await db
+        .prepare("SELECT count(*) AS n FROM occupied_slots")
+        .first<{ n: number }>())!.n,
+    ).toBe(5);
+  });
+  it("rejects overlapping direct SQL inserts and rolls back their triggers", async () => {
+    const statement = () =>
+      db
+        .prepare(
+          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash) VALUES (?,'consulting',?,0,9999999999,540,600,615,'Demo','demo@example.com','hash')`,
+        )
+        .bind(crypto.randomUUID(), day());
+    const results = await Promise.allSettled([
+      statement().run(),
+      statement().run(),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(
+      (await db
+        .prepare("SELECT count(*) AS n FROM bookings")
+        .first<{ n: number }>())!.n,
+    ).toBe(1);
+    expect(
+      (await db
+        .prepare("SELECT count(*) AS n FROM occupied_slots")
+        .first<{ n: number }>())!.n,
+    ).toBe(5);
+  });
+  it("includes buffer, rejects wrong token and releases cancelled slots", async () => {
+    const first = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string; cancelToken: string };
+    expect(
+      (await request("/api/bookings", "POST", payload("10:00", "discovery")))
+        .status,
+    ).toBe(409);
+    expect(
+      (await request("/api/bookings", "POST", payload("10:30", "discovery")))
+        .status,
+    ).toBe(201);
+    expect(
+      (
+        await request(`/api/bookings/${first.id}`, "DELETE", undefined, {
+          "X-Cancel-Token": "a".repeat(64),
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await request(`/api/bookings/${first.id}`, "DELETE", undefined, {
+          "X-Cancel-Token": first.cancelToken,
+        })
+      ).status,
+    ).toBe(204);
+    expect((await request("/api/bookings", "POST", payload())).status).toBe(
+      201,
+    );
+  });
+  it("preserves the original booking and occupied intervals on reschedule conflict", async () => {
+    const first = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string; cancelToken: string };
+    await request("/api/bookings", "POST", payload("11:00"));
+    const headers = { "X-Cancel-Token": first.cancelToken };
+    expect(
+      (
+        await request(
+          `/api/bookings/${first.id}`,
+          "PUT",
+          { date: day(), time: "11:00" },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (await db
+        .prepare("SELECT start_min FROM bookings WHERE id=?")
+        .bind(first.id)
+        .first<{ start_min: number }>())!.start_min,
+    ).toBe(540);
+    expect(
+      (await db
+        .prepare("SELECT count(*) AS n FROM occupied_slots WHERE booking_id=?")
+        .bind(first.id)
+        .first<{ n: number }>())!.n,
+    ).toBe(5);
+    expect(
+      (
+        await request(
+          `/api/bookings/${first.id}`,
+          "PUT",
+          { date: day(), time: "13:00" },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
+  });
+  it("requires login and exact Origin, persists sessions and revokes logout", async () => {
+    expect((await request("/api/admin/bookings")).status).toBe(401);
+    expect(
+      (
+        await request("/api/admin/login", "POST", {
+          password: "test-password-long",
+        })
+      ).status,
+    ).toBe(403);
+    const headers = await admin();
+    expect(
+      (await request("/api/admin/bookings", "GET", undefined, headers)).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          "/api/admin/hours",
+          "PUT",
+          { weekdays: [0, 1, 2, 3, 4], opens: "10:00", closes: "16:00" },
+          { Cookie: headers.Cookie },
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (await request("/api/admin/logout", "POST", undefined, headers)).status,
+    ).toBe(204);
+    expect(
+      (await request("/api/admin/bookings", "GET", undefined, headers)).status,
+    ).toBe(401);
+  });
+  it("updates hours atomically and preserves existing reservations", async () => {
+    await request("/api/bookings", "POST", payload());
+    const headers = await admin();
+    expect(
+      (
+        await request(
+          "/api/admin/hours",
+          "PUT",
+          { weekdays: [0, 1, 2, 3, 4], opens: "10:00", closes: "17:00" },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
+    const hours = (await (
+      await request("/api/admin/hours", "GET", undefined, headers)
+    ).json()) as { opens: string }[];
+    expect(hours.every((h) => h.opens === "09:00")).toBe(true);
+  });
+  it("rate limits password attempts", async () => {
+    for (let i = 0; i < 5; i++)
+      expect(
+        (
+          await request(
+            "/api/admin/login",
+            "POST",
+            { password: "wrong" },
+            origin,
+          )
+        ).status,
+      ).toBe(401);
+    expect(
+      (await request("/api/admin/login", "POST", { password: "wrong" }, origin))
+        .status,
+    ).toBe(429);
+  });
+  it("validates dates, schedule, service, contact and no-store responses", async () => {
+    expect(
+      (await request("/api/bookings", "POST", { ...payload(), date: today() }))
+        .status,
+    ).toBe(422);
+    expect(
+      (await request("/api/bookings", "POST", payload("08:00"))).status,
+    ).toBe(422);
+    expect(
+      (await request("/api/bookings", "POST", { ...payload(), email: "wrong" }))
+        .status,
+    ).toBe(422);
+    const r = await request(
+      `/api/availability?date=${day()}&serviceId=consulting`,
+    );
+    expect(r.status).toBe(200);
+    expect(r.headers.get("Cache-Control")).toBe("no-store");
+  });
+});
