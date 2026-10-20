@@ -60,6 +60,49 @@ For Workers Builds connected to GitHub, use repository root `/`, deploy command 
 
 Preview deployments must use an isolated preview database before allowing writes; do not enable preview URLs against the production D1 binding.
 
+
+### Preview build failure: missing previews block
+
+Workers Builds runs `npx wrangler preview` for non-production branches. This
+command needs an explicit `previews` block; `preview_urls: false` does not
+configure Preview resource bindings. Do not copy the production D1 UUID into it.
+
+Provision a separate D1 database named `slotiva-preview-db` in the dashboard or
+with `npx wrangler d1 create slotiva-preview-db`. Then add the following block
+to `wrangler.jsonc`, replacing the example value with that database's real UUID:
+
+```json
+{
+  "previews": {
+    "vars": { "COOKIE_SECURE": "true" },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "slotiva-preview-db",
+        "database_id": "<PREVIEW_DATABASE_UUID>"
+      }
+    ]
+  }
+}
+```
+
+For remote Preview migrations, use a separate Wrangler config with the same
+Preview database UUID at top-level `d1_databases`, binding `PREVIEW_DB`, and
+`migrations_dir: "migrations"`. Apply it explicitly:
+
+```bash
+npx wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.jsonc
+```
+
+Do not use `npm run db:remote` for this step: it targets production. After the
+Preview schema is initialized, commit the Preview configuration and retry the
+branch build. Preview admin login also needs a separate Preview secret; do not
+assume the production password secret is inherited. A single Preview database
+isolates previews from production, but all previews using its UUID share data.
+Use fictional data only.
+
+Reference: [Cloudflare Preview resources and D1 migrations](https://developers.cloudflare.com/workers/previews/resources/).
+
 ## Booking rules and atomicity
 
 - One fictional professional, with 30/45/60-minute services.
