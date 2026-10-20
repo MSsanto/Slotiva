@@ -6,6 +6,16 @@ React + TypeScript frontend, a TypeScript Worker API, and Cloudflare D1. One dep
 
 Production target: https://slotiva.matheus-sergio.workers.dev
 
+## Documentation and evidence
+
+- [API contract](docs/API.md): routes, authentication and response codes.
+- [Documentation policy](docs/DOCUMENTATION.md): update requirements, evidence and CI enforcement.
+- [Architecture decision](docs/ADR-001-cloudflare.md): why the original backend was replaced.
+
+This README describes repository behavior, not a certification of the deployed
+version. A green CI run validates its commit against isolated local storage; it
+does not prove production deployment, remote migrations or secret configuration.
+
 ## Run locally
 
 Requires Node.js 22.12+ or 24+ and npm. No Python, PostgreSQL, Docker or paid account is required for local development.
@@ -67,13 +77,13 @@ The current three services occupy at most five 15-minute intervals. Extending se
 ## Authentication and boundaries
 
 - Salted PBKDF2-SHA256 hashes use the Workers Web Crypto implementation (100,000 iterations); no production password is in the repository.
-- Login attempts are limited to five per client IP per 15-minute window in D1.
+- Failed login attempts are limited to five per client IP per 15-minute window in D1; a successful login clears that client's attempt counter.
 - Random 256-bit session tokens expire after eight hours; only SHA-256 hashes are stored in D1. Logout revokes the token.
 - Administrative writes and login require an exact same-origin Origin header. The app needs no cross-origin cookie exception.
 - Customer cancellation and rescheduling require a separate random token returned only at booking creation. The browser keeps it only in React memory; reloading/leaving loses customer self-service access. The professional can still cancel after login.
 - API responses use `Cache-Control: no-store`. No localStorage customer records, public customer listing or email delivery.
 - Use fictional data in the portfolio demo. Public abuse protection, manual accessibility review, retention/backups policy and customer recovery/notifications are pending before real customer use.
-- If `ADMIN_PASSWORD_HASH` is missing, administration stays closed with HTTP 503; public bookings can still work.
+- If `ADMIN_PASSWORD_HASH` is missing or malformed, new logins return HTTP 503; public bookings can still work. Existing unexpired sessions remain valid: removing or rotating the password hash does not revoke sessions. Emergency revocation also requires deleting the relevant rows from `sessions` through an authorized database operation.
 
 ## Verification
 
@@ -98,7 +108,7 @@ npm run dev:api -- --var COOKIE_SECURE:false
 npm run test:e2e
 ```
 
-Playwright starts Vite. Tests exercise reservation → rescheduling → admin login → reload → cancellation → logout; mobile overflow, keyboard entry and automated WCAG AA checks run for desktop and mobile. These checks are not a full manual accessibility audit. CI runs all of the above against disposable local storage.
+Playwright starts Vite. Tests exercise reservation → rescheduling → admin login → reload → administrative cancellation → logout. The layout test checks horizontal overflow and keyboard entry at a mobile viewport; axe scans the initial booking screen at mobile and desktop viewports using WCAG A/AA tags. Other screens and interaction states are not covered by those accessibility scans. These checks are not a full manual accessibility audit. CI runs these checks against disposable local storage.
 
 ## Architecture
 
