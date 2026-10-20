@@ -54,7 +54,7 @@ uvicorn slotiva.main:app --port 8000 --no-access-log
 - Start times every 30 minutes; each appointment occupies its duration **plus 15 minutes of buffer**. The buffer must fit within opening hours.
 - PostgreSQL's GiST exclusion constraint rejects overlapping `[start, occupied_until)` ranges for active bookings. This protects writes independently of the UI and even of the API service.
 - Conflict responses use HTTP 409. Rescheduling rolls back on conflict, preserving the original reservation.
-- Schedule changes and booking writes coordinate with a transaction advisory lock. Existing reservations cannot be invalidated by shortening opening hours.
+- Schedule changes and booking writes coordinate with a transaction advisory lock. Existing reservations cannot be invalidated by shortening opening hours. The same lock avoids deadlock-prone concurrent exclusion checks on API writes. The raw SQL test retries a deadlock-aborted transaction and still requires an exclusion violation and exactly one persisted booking.
 - Date keys come from the backend's professional calendar, independent of the visitor's timezone.
 
 ## Security and data boundaries

@@ -44,25 +44,35 @@ def test_database_exclusion_independent_of_api(db):
     barrier = Barrier(2)
 
     def insert(_):
-        try:
-            with connect() as conn:
-                barrier.wait(timeout=10)
-                conn.execute(
-                    """INSERT INTO bookings (id,service_id,starts_at,ends_at,occupied_until,name,email,cancel_hash)
-                    VALUES (%s,'consulting',%s::timestamptz,%s::timestamptz+interval '60 minutes',%s::timestamptz+interval '75 minutes','Demo','demo@example.com','hash')""",
-                    (
-                        uuid4(),
-                        f"{day()} 09:00-03",
-                        f"{day()} 09:00-03",
-                        f"{day()} 09:00-03",
-                    ),
-                )
-            return "created"
-        except psycopg.errors.ExclusionViolation:
-            return "conflict"
+        booking_id = uuid4()
+        for attempt in range(2):
+            try:
+                with connect() as conn:
+                    if attempt == 0:
+                        barrier.wait(timeout=10)
+                    conn.execute(
+                        """INSERT INTO bookings (id,service_id,starts_at,ends_at,occupied_until,name,email,cancel_hash)
+                        VALUES (%s,'consulting',%s::timestamptz,%s::timestamptz+interval '60 minutes',%s::timestamptz+interval '75 minutes','Demo','demo@example.com','hash')""",
+                        (booking_id, f"{day()} 09:00-03", f"{day()} 09:00-03", f"{day()} 09:00-03"),
+                    )
+                return "created"
+            except psycopg.errors.ExclusionViolation:
+                return "conflict"
+            except psycopg.errors.DeadlockDetected:
+                # Direct concurrent exclusion checks can deadlock. Retry only
+                # the aborted transaction: the committed winner must still
+                # force an ExclusionViolation. API writes use an advisory lock.
+                if attempt == 1:
+                    raise
+        raise AssertionError("Transaction did not complete")
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         assert sorted(executor.map(insert, range(2))) == ["conflict", "created"]
+    with connect() as conn:
+        assert (
+            conn.execute("SELECT count(*) AS n FROM bookings WHERE NOT cancelled").fetchone()["n"]
+            == 1
+        )
 
 
 def test_overlap_buffer_and_cancellation(db):
