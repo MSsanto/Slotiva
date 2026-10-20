@@ -36,6 +36,9 @@ jobs:
           cache-dependency-path: backend/requirements-dev.txt
       - run: npm ci
       - run: pip install -r backend/requirements-dev.txt
+      - run: ruff check backend
+      - run: ruff format --check backend
+      - run: npm run format:check
       - run: npm run lint
       - run: npm test
       - run: npm run build
@@ -46,6 +49,7 @@ jobs:
           export ADMIN_PASSWORD_HASH=$(python -c "from slotiva.security import password_hash; print(password_hash('test-password-long'))")
           python -m slotiva.db
           uvicorn slotiva.main:app --port 8000 --no-access-log &
+          for attempt in $(seq 1 30); do curl -fsS http://localhost:8000/api/health && break || sleep 1; done
           npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()

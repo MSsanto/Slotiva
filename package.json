@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run src",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "format:check": "prettier --check src e2e playwright.config.ts vite.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
@@ -28,6 +29,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.88.0",
+    "prettier": "^3.9.10",
     "typescript": "~7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"

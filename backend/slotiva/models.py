@@ -1,9 +1,10 @@
 from datetime import date, time
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class InputModel(BaseModel):
-    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class BookingInput(InputModel):
@@ -21,7 +22,7 @@ class RescheduleInput(InputModel):
 
 class LoginInput(InputModel):
     password: str = Field(min_length=1, max_length=200)
-    model_config = ConfigDict(extra='forbid', str_strip_whitespace=False)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
 
 class HoursInput(InputModel):
@@ -29,9 +30,42 @@ class HoursInput(InputModel):
     opens: time
     closes: time
 
-    @field_validator('weekdays')
+    @field_validator("weekdays")
     @classmethod
     def valid_weekdays(cls, value):
         if len(value) != len(set(value)) or any(day not in range(7) for day in value):
-            raise ValueError('Use dias únicos de 0 (segunda) a 6 (domingo).')
+            raise ValueError("Use dias únicos de 0 (segunda) a 6 (domingo).")
         return value
+
+
+class ServiceOutput(BaseModel):
+    id: str
+    name: str
+    description: str
+    duration: int
+    price: int
+
+
+class BookingOutput(BaseModel):
+    id: str
+    serviceId: str
+    date: date
+    time: str
+    name: str
+    email: EmailStr
+
+
+class ReceiptOutput(BookingOutput):
+    cancelToken: str
+
+
+class CalendarOutput(BaseModel):
+    today: date
+    timezone: str
+    horizonDays: int
+
+
+class HoursOutput(BaseModel):
+    weekday: int
+    opens: str
+    closes: str
