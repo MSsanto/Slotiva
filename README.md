@@ -1,48 +1,110 @@
 # Slotiva
 
-Accessible appointment booking, built with **React, TypeScript and Vite**.
+**Accessible appointment booking with React, TypeScript, FastAPI and PostgreSQL.**
 
-> Portfolio project · First frontend increment · Not a production booking service.
+A portfolio MVP for one independent professional. Customers reserve, reschedule and cancel appointments; the professional signs in to manage bookings and weekly availability.
 
-## Run locally
+## Stack
 
-Requires Node.js 22.12+ (or 24+) and npm.
+- React + TypeScript + Vite; React Router for screens.
+- TanStack Query for server state, loading/error states and cache invalidation.
+- React Hook Form + Zod for contact validation.
+- FastAPI + Pydantic; psycopg and PostgreSQL 16.
+- Vitest, pytest, Playwright and axe; GitHub Actions.
+
+## Local setup
+
+Requires Node 22.12+ or 24+, Python 3.12+, and Docker Compose.
 
 ```bash
 npm ci
+python -m venv .venv
+# Linux/macOS:
+source .venv/bin/activate
+# Windows PowerShell instead: .venv\Scripts\Activate.ps1
+pip install -r backend/requirements-dev.txt
+cp .env.example .env
+cd backend
+python -m slotiva.security
+cd ..
+```
+
+The command prompts for a password of at least 12 characters and prints a salted scrypt hash. Put that hash in `ADMIN_PASSWORD_HASH` in `.env`, and replace `POSTGRES_PASSWORD` with a strong URL-safe random value. Never commit `.env` or actual passwords.
+
+```bash
+docker compose up --build -d
 npm run dev
 ```
+
+Open http://localhost:5173. `/admin` requires the password you chose. API documentation: http://localhost:8000/docs. PostgreSQL is kept on the private Compose network; the API port binds to loopback. Vite proxies `/api` to the backend, keeping cookies on the same origin.
+
+Without Docker, run PostgreSQL 16 separately, export `DATABASE_URL`, `ADMIN_PASSWORD_HASH`, `COOKIE_SECURE=false`, `ALLOWED_ORIGINS=http://localhost:5173`, then:
+
+```bash
+cd backend
+python -m slotiva.db
+uvicorn slotiva.main:app --port 8000 --no-access-log
+```
+
+## Booking rules
+
+- Single professional; three fixed services of 30, 45 and 60 minutes.
+- Booking horizon: tomorrow through 14 days ahead in **America/Sao_Paulo**.
+- Weekly opening hours are editable; default Monday–Friday, 09:00–17:00.
+- Start times every 30 minutes; each appointment occupies its duration **plus 15 minutes of buffer**. The buffer must fit within opening hours.
+- PostgreSQL's GiST exclusion constraint rejects overlapping `[start, occupied_until)` ranges for active bookings. This protects writes independently of the UI and even of the API service.
+- Conflict responses use HTTP 409. Rescheduling rolls back on conflict, preserving the original reservation.
+- Schedule changes and booking writes coordinate with a transaction advisory lock. Existing reservations cannot be invalidated by shortening opening hours.
+- Date keys come from the backend's professional calendar, independent of the visitor's timezone.
+
+## Security and data boundaries
+
+- Administrator sessions use random opaque tokens; only SHA-256 token hashes are stored in PostgreSQL, with an eight-hour expiry.
+- Session cookie: HttpOnly, SameSite=Lax, restricted to `/api/admin`. `COOKIE_SECURE=false` is only for local HTTP; enable it with HTTPS.
+- Administrative mutations and login require an exact allowlisted Origin. Login attempts are limited per direct client IP to five per 15-minute window using PostgreSQL. Behind a proxy, configure trusted forwarded headers deliberately.
+- Customer cancellation/rescheduling requires a separate unguessable token, returned only at creation. It is kept in React memory, not in URL parameters or browser storage. Leaving/reloading the page loses self-service access; an authenticated professional can still cancel.
+- Responses use `Cache-Control: no-store`. No localStorage customer records, no public listing of clients, and no email notification delivery.
+- Use fictional data in demonstrations. The professional is fictional. This is not a multi-tenant production service.
+
+## Tests
 
 ```bash
 npm run lint
 npm test
 npm run build
-npm run preview
+python -m pytest -q
 ```
 
-## Current features
+Without `TEST_DATABASE_URL`, pytest explicitly skips integration tests; it never silently substitutes SQLite. To run the full suite, point `TEST_DATABASE_URL` to a **dedicated disposable PostgreSQL database**. Integration fixtures truncate application tables in that database.
 
-- Portuguese booking flow: service → business day → time → contact information.
-- Confirmation and cancellation.
-- Demo administration view with chronologically sorted appointments.
-- Local persistence; reload the page to retain demo bookings.
-- Responsive layout, native form controls, keyboard focus, skip link and error announcements.
-- Unit tests for availability, validation and local booking conflicts; GitHub Actions CI.
+Integration coverage includes two simultaneous HTTP requests (one 201, one 409), concurrent raw SQL inserts proving the database constraint, buffer overlap, cancellation authorization, rescheduling rollback, administrative authentication, Origin validation, logout, schedule changes, migration repeatability and login rate limiting.
 
-Use fictional contact details. Data stays in browser localStorage; no confirmation email is sent. Clear browser site data to reset the demo. The professional and services are fictional.
+With the API running against a disposable database, the admin password set to `test-password-long`, and an empty agenda:
 
-## Architecture and boundaries
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
 
-`src/booking.ts` contains pure booking rules. `src/App.tsx` orchestrates the demo UI and storage. Dates use local calendar keys, and the interface presents the professional's timezone as America/Sao_Paulo. The slot schedule is fixed and durations fit within its 90-minute spacing. Availability is weekdays over the next fourteen days; holidays are not modeled.
+Playwright starts Vite. Browser tests cover booking → rescheduling → admin login → persisted agenda → cancellation → logout, plus mobile overflow, keyboard entry and an automated WCAG AA scan. Automated checks do not replace a manual accessibility audit.
 
-This version **does not** provide authentication, shared storage, a backend, cross-browser synchronization, or atomic conflict prevention. Reading localStorage before saving catches sequential local conflicts but is not a concurrency guarantee. The demo administration screen is public by design. Accessibility has not yet undergone a full audit, and UI end-to-end testing is pending.
+CI provisions PostgreSQL 16 and executes all checks, including browser tests.
 
-## Next increments
+## Architecture
 
-1. Extract screens/components, introduce routing, API query state and validated forms.
-2. FastAPI + PostgreSQL: services, weekly availability, bookings and cancellation tokens.
-3. Enforce overlapping interval prevention in PostgreSQL, with a concurrency integration test and HTTP 409 on conflicts.
-4. Add authenticated professional administration, rescheduling and availability editing.
-5. English locale, end-to-end tests, accessibility audit and deployment.
+```text
+src/pages/          Booking and authenticated administration screens
+src/api.ts          API client, typed contracts and calendar presentation
+backend/slotiva/
+  main.py           HTTP routes and exception mapping
+  models.py         Input validation
+  services.py       Booking/schedule business rules and transactions
+  security.py       Passwords, sessions, Origin checks and login throttling
+  db.py, schema.sql PostgreSQL connection and versioned initial schema
+```
 
-The intended final product is a small, complete booking application. Payments, messaging and multi-professional organizations remain outside the initial MVP.
+## Hosting and next work
+
+No public deployment is configured yet. A complete deployment needs a PostgreSQL database, an API runtime and a frontend host/reverse proxy forwarding `/api` to FastAPI and other routes to `index.html`. Set exact production origins and secure cookies; provision credentials through the host's secret store. A static-only host cannot run the full product.
+
+Pending: English locale, manual accessibility review, date exceptions/holidays, production observability, customer recovery/notification flow, broader abuse protection and backup/retention policy. Payments and multi-professional organizations remain out of scope.

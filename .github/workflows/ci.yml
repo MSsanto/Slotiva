@@ -1,17 +1,54 @@
-name: Frontend CI
-on: [push, pull_request]
+name: Slotiva CI
+on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: slotiva
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: slotiva_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U slotiva -d slotiva_test"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://slotiva:ci-only-password@localhost:5432/slotiva_test
+      DATABASE_URL: postgresql://slotiva:ci-only-password@localhost:5432/slotiva_test
+      PYTHONPATH: backend
+      COOKIE_SECURE: 'false'
+      ALLOWED_ORIGINS: http://localhost:5173
+      ADMIN_PASSWORD_HASH: ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
       - run: npm ci
+      - run: pip install -r backend/requirements-dev.txt
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: python -m pytest -q
+      - run: npx playwright install --with-deps chromium
+      - name: Start API and run end-to-end tests
+        run: |
+          export ADMIN_PASSWORD_HASH=$(python -c "from slotiva.security import password_hash; print(password_hash('test-password-long'))")
+          python -m slotiva.db
+          uvicorn slotiva.main:app --port 8000 --no-access-log &
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results/
