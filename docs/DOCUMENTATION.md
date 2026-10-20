@@ -8,6 +8,15 @@ entry point, API.md is the route contract, and ADRs record architecture decision
 Do not claim deployment, security certification or full accessibility compliance
 from a local test or green CI run.
 
+## Documentation language
+
+English is required for all maintained repository documentation, including the
+README, API contract, ADRs, policies, setup guides and PR templates. New and
+updated documentation must remain in English. Preserve code identifiers, routes
+and exact application messages when quoting them; Portuguese product UI text
+is independent of the documentation language. Reviewers must verify language
+consistency; the current automated checker does not detect natural language.
+
 ## Mandatory change matrix
 
 The `Documentation / check` CI job enforces these pairs on the complete change
