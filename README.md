@@ -4,6 +4,8 @@
 
 React + TypeScript frontend, a TypeScript Worker API, and Cloudflare D1. One deployment serves the application and `/api` on the same origin, including authenticated administration.
 
+The browser tab title in `index.html` is “Slotiva — horários livres que viram encontros.” The Portuguese product tagline means “Available time slots that become appointments.” Repository documentation remains in English.
+
 Production target: https://slotiva.matheus-sergio.workers.dev
 
 ## Documentation and evidence
