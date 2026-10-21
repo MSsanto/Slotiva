@@ -104,3 +104,7 @@ change rather than asserting protection is enabled.
 Additional recurrence regressions verify the explicit under-48h professional
 agreement path while public requests still fail, the 366-day horizon and
 professional removal cancelling confirmed series without erasing audit history.
+
+Browser fixture correction: frequency selection uses the visible native-select
+label without an exact full-label-text match, avoiding dependence on option text
+within a wrapped label. This changes the test selector, not booking behavior.

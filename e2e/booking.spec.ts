@@ -176,9 +176,7 @@ test("professional enters a fortnightly agreement and cancels one occurrence the
     .fill("Recurring Browser Demo");
   await form.getByLabel("Primeira data").fill(d.toISOString().slice(0, 10));
   await form.getByLabel("Horário fixo").fill("11:00");
-  await form
-    .getByLabel("Frequência", { exact: true })
-    .selectOption("fortnightly");
+  await form.getByLabel("Frequência").selectOption("fortnightly");
   await form.getByLabel("Quantidade de encontros").fill("3");
   await form
     .getByRole("button", { name: "Confirmar encontros combinados" })
