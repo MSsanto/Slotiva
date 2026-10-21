@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-test("reserve, reschedule, authenticate, cancel and log out", async ({
+test("request, edit, approve and cancel with a live customer receipt", async ({
   page,
 }) => {
+  test.setTimeout(60000);
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Reserve seu momento" }),
@@ -58,29 +59,50 @@ test("reserve, reschedule, authenticate, cancel and log out", async ({
     .getByRole("button", { name: "Alterar solicitação", exact: true })
     .click();
   await expect(page.locator(".receipt")).toContainText(times.at(-1)!);
-  await page.getByRole("link", { name: "Minha agenda", exact: true }).click();
+  const professional = await page.context().newPage();
+  await professional.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Acesso do profissional" }),
+    professional.getByRole("heading", { name: "Acesso do profissional" }),
   ).toBeVisible();
-  await page.getByLabel("Senha administrativa").fill("test-password-long");
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await professional
+    .getByLabel("Senha administrativa")
+    .fill("test-password-long");
+  await professional
+    .getByRole("button", { name: "Entrar", exact: true })
+    .click();
   await expect(
-    page.getByRole("heading", { name: "Minha agenda" }),
+    professional.getByRole("heading", { name: "Minha agenda" }),
   ).toBeVisible();
-  await page.reload();
-  const row = page.locator(".appointment").filter({ hasText: "Browser Demo" });
+  await professional.reload();
+  const row = professional
+    .locator(".appointment")
+    .filter({ hasText: "Browser Demo" });
   await expect(row).toBeVisible();
   await expect(row).toContainText("Aguardando aprovação");
   await row.getByRole("button", { name: "Aprovar", exact: true }).click();
   await expect(row).toContainText("Confirmado pelo profissional");
+  await page.bringToFront();
+  await expect(
+    page.getByRole("heading", { name: "Seu horário foi confirmado." }),
+  ).toBeVisible({ timeout: 20000 });
+  await expect(
+    page.getByRole("button", { name: "Alterar solicitação", exact: true }),
+  ).toHaveCount(0);
   await row.getByRole("button", { name: "Cancelar reserva" }).click();
   await expect(row).toContainText("Cancelado");
+  await page.bringToFront();
+  await expect(page.locator(".eyebrow")).toContainText("Cancelado", {
+    timeout: 20000,
+  });
+  await expect(
+    page.getByRole("button", { name: "Cancelar esta reserva" }),
+  ).toHaveCount(0);
   await expect(
     row.getByRole("button", { name: "Aprovar", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Sair", exact: true }).click();
+  await professional.getByRole("button", { name: "Sair", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Acesso do profissional" }),
+    professional.getByRole("heading", { name: "Acesso do profissional" }),
   ).toBeVisible();
 });
 

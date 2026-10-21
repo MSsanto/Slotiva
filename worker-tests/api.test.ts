@@ -536,6 +536,123 @@ describe("professional approval lifecycle", () => {
     expect(moved.approvalExpiresAt).toBe(b.approvalExpiresAt);
     expect(moved.version).toBe(2);
   });
+
+  it("only treats the original decision version as an idempotent replay", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as {
+      id: string;
+      cancelToken: string;
+    };
+    const moved = await request(
+      `/api/bookings/${b.id}`,
+      "PUT",
+      { date: day(), time: "13:00" },
+      { "X-Cancel-Token": b.cancelToken },
+    );
+    expect(moved.status).toBe(200);
+    const headers = await admin();
+    const url = `/api/admin/bookings/${b.id}/approve`;
+    expect((await request(url, "POST", { version: 2 }, headers)).status).toBe(
+      200,
+    );
+    expect((await request(url, "POST", { version: 2 }, headers)).status).toBe(
+      200,
+    );
+    expect((await request(url, "POST", { version: 1 }, headers)).status).toBe(
+      409,
+    );
+    expect((await request(url, "POST", { version: 999 }, headers)).status).toBe(
+      409,
+    );
+    expect(await counts("booking_events")).toBe(1);
+    expect(await counts("notification_outbox")).toBe(1);
+  });
+
+  it("rolls back rejection, audit and released occupancy when outbox insertion fails", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string };
+    const headers = await admin();
+    await db.exec(
+      "CREATE TRIGGER simulate_outbox_failure BEFORE INSERT ON notification_outbox BEGIN SELECT RAISE(ABORT,'SIMULATED_OUTBOX_FAILURE'); END;",
+    );
+    try {
+      expect(
+        (
+          await request(
+            `/api/admin/bookings/${b.id}/reject`,
+            "POST",
+            { version: 1 },
+            headers,
+          )
+        ).status,
+      ).toBe(503);
+      const row = await db
+        .prepare("SELECT status,version,cancelled FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first();
+      expect(row).toEqual({
+        status: "pending_approval",
+        version: 1,
+        cancelled: 0,
+      });
+      expect(await counts("occupied_slots")).toBe(5);
+      expect(await counts("booking_events")).toBe(0);
+      expect(await counts("notification_outbox")).toBe(0);
+    } finally {
+      await db.exec("DROP TRIGGER simulate_outbox_failure");
+    }
+    expect(
+      (
+        await request(
+          `/api/admin/bookings/${b.id}/reject`,
+          "POST",
+          { version: 1 },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
+    expect(await counts("occupied_slots")).toBe(0);
+    expect(await counts("booking_events")).toBe(1);
+    expect(await counts("notification_outbox")).toBe(1);
+  });
+
+  it("allows one effective result when the customer edits while the professional approves", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string; cancelToken: string };
+    const headers = await admin();
+    const responses = await Promise.all([
+      request(
+        `/api/bookings/${b.id}`,
+        "PUT",
+        { date: day(), time: "13:00" },
+        { "X-Cancel-Token": b.cancelToken },
+      ),
+      request(
+        `/api/admin/bookings/${b.id}/approve`,
+        "POST",
+        { version: 1 },
+        headers,
+      ),
+    ]);
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    const row = await db
+      .prepare("SELECT status,version,start_min FROM bookings WHERE id=?")
+      .bind(b.id)
+      .first<{ status: string; version: number; start_min: number }>();
+    expect(row!.version).toBe(2);
+    if (row!.status === "confirmed") {
+      expect(row!.start_min).toBe(540);
+      expect(await counts("notification_outbox")).toBe(1);
+    } else {
+      expect(row!.status).toBe("pending_approval");
+      expect(row!.start_min).toBe(780);
+      expect(await counts("notification_outbox")).toBe(0);
+    }
+    expect(await counts("occupied_slots")).toBe(5);
+  });
 });
 
 describe("migration and scheduled expiry", () => {

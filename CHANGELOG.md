@@ -1,4 +1,4 @@
-# Histórico de mudanças
+# Change history
 
 Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits do Git; não é reconstruído nem rotulado como release sem evidência.
 
@@ -12,6 +12,29 @@ Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits 
 - Validação local: formatação, lint, teste de frontend, 19 testes Worker/regra temporal, build, migration D1 local e Wrangler dry-run aprovados.
 - E2E atualizado para aprovação; execução local bloqueada antes de abrir a aplicação por ausência de Chromium e falha no download do navegador. Wrangler dev também encontra erro de enumeração de interfaces neste ambiente; o Worker foi exercitado em Miniflare/workerd. Validação E2E deve ocorrer no CI antes do merge.
 - Limites: Google login/Calendar, e-mail, recorrência e múltiplos profissionais continuam pendentes. Outbox em awaiting_integration não significa notificação enviada. Checklist de clientes reais não foi liberado.
+
+## 2026-10-21 — approval review and version-safe retries
+
+- Reviewed the existing approval implementation in PR #2 rather than duplicating
+  work already published on its branch.
+- Fixed approve/reject replay handling: only the version immediately preceding
+  the same decision is accepted as a successful retry. Stale/arbitrary versions
+  now return 409 without generating another notification intent.
+- Added regression coverage for stale replay after a pending edit, concurrent
+  customer edit versus approval, and rollback of status/audit/occupancy when
+  outbox insertion fails.
+- Published the current approval runbook in English; clarified legacy session
+  behavior, actual accessibility test coverage and separation from PR #1's
+  incompatible shared Preview database.
+- Validation: 22 Worker/rule tests and one frontend unit test passed locally.
+  Formatting, lint, build and Wrangler dry-run also passed. Chromium download
+  failed locally (invalid/truncated archive); browser validation runs in GitHub CI.
+  Extended the browser journey to keep the customer receipt open while a second
+  tab approves and cancels, checking live status refresh and permitted actions.
+- No remote migration, production deploy or real-customer release performed.
+  Google identity/Calendar, notification delivery and confirmed reschedule
+  proposals remain separate work. Historical entries below retain their original
+  wording; the current implementation runbook is maintained in English.
 
 ## 2026-10-21 — prazos aprovados para o piloto
 

@@ -28,7 +28,8 @@ export async function decide(
     .first<BookingRow>();
   if (!existing) throw new HttpError(404, "Solicitação não encontrada.");
   // Repeating the same decision is safe; no UPDATE means no extra event/job.
-  if (existing.status === target) return existing;
+  if (existing.status === target && existing.version === version + 1)
+    return existing;
   throw new HttpError(
     409,
     "A solicitação mudou ou expirou. Atualize a agenda.",

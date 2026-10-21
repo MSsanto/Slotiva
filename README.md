@@ -68,17 +68,19 @@ The current three services occupy at most five 15-minute intervals. Extending se
 ## Authentication and boundaries
 
 - Salted PBKDF2-SHA256 hashes use the Workers Web Crypto implementation (100,000 iterations); no production password is in the repository.
-- Login attempts are limited to five per client IP per 15-minute window in D1.
+- Failed login attempts are limited to five per client IP per 15-minute window in D1; a successful login resets the counter for that client.
 - Random 256-bit session tokens expire after eight hours; only SHA-256 hashes are stored in D1. Logout revokes the token.
 - Administrative writes and login require an exact same-origin Origin header. The app needs no cross-origin cookie exception.
 - Customer cancellation and rescheduling require a separate random token returned only at booking creation. The browser keeps it only in React memory; reloading/leaving loses customer self-service access. While the receipt is open, status is refreshed every 15 seconds. The professional can still cancel after login.
 - API responses use `Cache-Control: no-store`. No localStorage customer records, public customer listing or email delivery.
 - Use fictional data in the portfolio demo. Public abuse protection, manual accessibility review, retention/backups policy and customer recovery/notifications are pending before real customer use.
-- If `ADMIN_PASSWORD_HASH` is missing, administration stays closed with HTTP 503; public bookings can still work.
+- Missing or malformed `ADMIN_PASSWORD_HASH` blocks new logins with HTTP 503; existing unexpired sessions remain valid. Password rotation does not revoke sessions. Public requests can still work.
 
 ## Professional approval (0.4.0)
 
 The administrator can approve or reject pending requests. Customers see their status and deadline; they cannot confirm their own request. A five-minute Cron and request-time cleanup expire overdue requests atomically, with transition history and a durable notification outbox. Approval at or after the deadline is rejected by the database.
+
+Decision retries are idempotent only for the version that produced the same outcome; stale or arbitrary versions return 409. Tests cover concurrent edits versus approvals and rollback when outbox insertion fails.
 
 **No email or Calendar invitation is sent yet.** Outbox entries await integration. Login remains password-based and the MVP still has one professional.
 
@@ -107,7 +109,7 @@ npm run dev:api -- --var COOKIE_SECURE:false
 npm run test:e2e
 ```
 
-Playwright starts Vite. Tests exercise reservation → rescheduling → admin login → reload → cancellation → logout; mobile overflow, keyboard entry and automated WCAG AA checks run for desktop and mobile. These checks are not a full manual accessibility audit. CI runs all of the above against disposable local storage.
+Playwright starts Vite. Tests exercise a pending request → pending time edit → admin login → reload → approval → cancellation → logout. The layout test checks mobile overflow and keyboard entry; axe scans the initial booking screen at mobile and desktop viewports. Other screens and states are not covered by those scans. These checks are not a full manual accessibility audit. CI uses disposable local storage.
 
 ## Architecture
 
