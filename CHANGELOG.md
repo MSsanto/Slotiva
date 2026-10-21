@@ -26,6 +26,7 @@ Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits 
 - Fixed the browser fixture's time-of-day dependency: two adjacent half-hour
   starts overlap a 30-minute service plus its buffer. The fixture now selects
   at least three available starts so its edit target is separate from the hold.
+  Status assertions are scoped to the receipt, independently of the page banner.
 - Published the current approval runbook in English; clarified legacy session
   behavior, actual accessibility test coverage and separation from PR #1's
   incompatible shared Preview database.
