@@ -93,9 +93,12 @@ test("request, edit, approve and cancel with a live customer receipt", async ({
   await row.getByRole("button", { name: "Cancelar reserva" }).click();
   await expect(row).toContainText("Cancelado");
   await page.bringToFront();
-  await expect(page.locator(".confirmation .eyebrow")).toContainText("Cancelado", {
-    timeout: 20000,
-  });
+  await expect(page.locator(".confirmation .eyebrow")).toContainText(
+    "Cancelado",
+    {
+      timeout: 20000,
+    },
+  );
   await expect(
     page.getByRole("button", { name: "Cancelar esta reserva" }),
   ).toHaveCount(0);
