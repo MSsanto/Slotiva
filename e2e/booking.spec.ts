@@ -20,7 +20,9 @@ test("request, edit, approve and cancel with a live customer receipt", async ({
       `/api/availability?date=${key}&serviceId=discovery`,
     );
     const available = await r.json();
-    if (available.length > 1) {
+    // Two half-hour starts can overlap the 30-minute service + 15-minute buffer.
+    // Pick a day with a genuinely separate edit target, even near the 48h cutoff.
+    if (available.length >= 3) {
       selected = key;
       times = available;
       await page

@@ -23,6 +23,9 @@ Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits 
 - Added regression coverage for stale replay after a pending edit, concurrent
   customer edit versus approval, and rollback of status/audit/occupancy when
   outbox insertion fails.
+- Fixed the browser fixture's time-of-day dependency: two adjacent half-hour
+  starts overlap a 30-minute service plus its buffer. The fixture now selects
+  at least three available starts so its edit target is separate from the hold.
 - Published the current approval runbook in English; clarified legacy session
   behavior, actual accessibility test coverage and separation from PR #1's
   incompatible shared Preview database.
