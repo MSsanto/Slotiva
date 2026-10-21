@@ -17,6 +17,11 @@ export interface BookingRow {
   email: string;
   cancel_hash: string;
   cancelled: number;
+  status:
+    "pending_approval" | "confirmed" | "rejected" | "expired" | "cancelled";
+  approval_expires_at: number | null;
+  decided_at: number | null;
+  version: number;
 }
 export interface HoursRow {
   weekday: number;

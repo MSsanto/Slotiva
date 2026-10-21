@@ -19,5 +19,6 @@
       "migrations_dir": "migrations",
     },
   ],
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": { "COOKIE_SECURE": "true" },
 }

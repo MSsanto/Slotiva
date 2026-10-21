@@ -5,6 +5,8 @@ import {
   ApiError,
   errorMessage,
   formatDate,
+  formatDeadline,
+  statusLabel,
   type Booking,
   type Hours,
   type Service,
@@ -40,6 +42,7 @@ export default function AdminPage() {
     queryKey: ["admin", "bookings"],
     queryFn: () => api<Booking[]>("/admin/bookings"),
     enabled: session.isSuccess,
+    refetchInterval: 15000,
   });
   const hours = useQuery({
     queryKey: ["admin", "hours"],
@@ -57,6 +60,31 @@ export default function AdminPage() {
       setNotice("Reserva cancelada.");
       void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
       void client.invalidateQueries({ queryKey: ["availability"] });
+    },
+  });
+  const decision = useMutation({
+    mutationFn: ({
+      booking,
+      action,
+    }: {
+      booking: Booking;
+      action: "approve" | "reject";
+    }) =>
+      api<Booking>(`/admin/bookings/${booking.id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({ version: booking.version }),
+      }),
+    onSuccess: (_, { action }) => {
+      setNotice(
+        action === "approve"
+          ? "Agendamento confirmado. Envio de e-mail e Google Agenda ainda não estão disponíveis."
+          : "Solicitação recusada; horário liberado.",
+      );
+      void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
+      void client.invalidateQueries({ queryKey: ["availability"] });
+    },
+    onError: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
     },
   });
   const updateHours = useMutation({
@@ -109,6 +137,7 @@ export default function AdminPage() {
     bookings.error ||
     hours.error ||
     cancel.error ||
+    decision.error ||
     updateHours.error ||
     logout.error;
   return (
@@ -153,14 +182,48 @@ export default function AdminPage() {
                 {b.name}
               </p>
               <small>{b.email}</small>
+              <p>{statusLabel(b.status)}</p>
+              {b.status === "pending_approval" && b.approvalExpiresAt && (
+                <small>
+                  Aprovar antes de {formatDeadline(b.approvalExpiresAt)}{" "}
+                  (Brasília)
+                </small>
+              )}
             </div>
-            <button
-              className="text-button"
-              disabled={cancel.isPending}
-              onClick={() => cancel.mutate(b.id)}
-            >
-              Cancelar reserva
-            </button>
+            <div>
+              {b.status === "pending_approval" && (
+                <>
+                  <button
+                    className="primary"
+                    disabled={decision.isPending || cancel.isPending}
+                    onClick={() =>
+                      decision.mutate({ booking: b, action: "approve" })
+                    }
+                  >
+                    Aprovar
+                  </button>
+                  <button
+                    className="text-button"
+                    disabled={decision.isPending || cancel.isPending}
+                    onClick={() =>
+                      decision.mutate({ booking: b, action: "reject" })
+                    }
+                  >
+                    Recusar
+                  </button>
+                </>
+              )}
+              {(b.status === "confirmed" ||
+                b.status === "pending_approval") && (
+                <button
+                  className="text-button"
+                  disabled={cancel.isPending || decision.isPending}
+                  onClick={() => cancel.mutate(b.id)}
+                >
+                  Cancelar reserva
+                </button>
+              )}
+            </div>
           </article>
         ))
       )}

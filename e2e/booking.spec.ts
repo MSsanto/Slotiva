@@ -38,12 +38,14 @@ test("reserve, reschedule, authenticate, cancel and log out", async ({
     .getByRole("textbox", { name: "E-mail", exact: true })
     .fill("browser@example.com");
   await page
-    .getByRole("button", { name: "Confirmar reserva", exact: false })
+    .getByRole("button", { name: "Solicitar agendamento", exact: false })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Seu próximo passo está marcado." }),
+    page.getByRole("heading", { name: "Acompanhe sua solicitação." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Reagendar", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Alterar solicitação", exact: true })
+    .click();
   const offset =
     Math.round(
       (new Date(`${selected}T12:00:00Z`).getTime() -
@@ -52,7 +54,9 @@ test("reserve, reschedule, authenticate, cancel and log out", async ({
     ) - 1;
   await page.locator(".days button").nth(offset).click();
   await page.getByRole("button", { name: times.at(-1)!, exact: true }).click();
-  await page.getByRole("button", { name: "Confirmar novo horário" }).click();
+  await page
+    .getByRole("button", { name: "Alterar solicitação", exact: true })
+    .click();
   await expect(page.locator(".receipt")).toContainText(times.at(-1)!);
   await page.getByRole("link", { name: "Minha agenda", exact: true }).click();
   await expect(
@@ -66,8 +70,14 @@ test("reserve, reschedule, authenticate, cancel and log out", async ({
   await page.reload();
   const row = page.locator(".appointment").filter({ hasText: "Browser Demo" });
   await expect(row).toBeVisible();
+  await expect(row).toContainText("Aguardando aprovação");
+  await row.getByRole("button", { name: "Aprovar", exact: true }).click();
+  await expect(row).toContainText("Confirmado pelo profissional");
   await row.getByRole("button", { name: "Cancelar reserva" }).click();
-  await expect(row).toHaveCount(0);
+  await expect(row).toContainText("Cancelado");
+  await expect(
+    row.getByRole("button", { name: "Aprovar", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Sair", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Acesso do profissional" }),

@@ -2,6 +2,17 @@
 
 Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits do Git; não é reconstruído nem rotulado como release sem evidência.
 
+## 0.4.0 — aprovação profissional implementada (2026-10-21)
+
+- Novas solicitações pendentes, 48h de antecedência e prazo fixo de 24h para aprovação; controles no Worker e nos triggers D1.
+- Painel com aprovação/recusa autenticadas, versões contra decisões concorrentes e repetição segura; cliente consulta status com token.
+- Expiração atômica na agenda e em Cron de cinco minutos, liberação de ocupações, histórico e outbox de intenções sem remetente ativo.
+- Migração 0002 preserva reservas anteriores e suas ocupações. README e runbook documentam publicação coordenada; não há migration remota ou deploy nesta entrega.
+- Alteração de pendências mantém prazo original. Remarcação de reservas confirmadas exige contato com o profissional até a implementação da proposta de remarcação.
+- Validação local: formatação, lint, teste de frontend, 19 testes Worker/regra temporal, build, migration D1 local e Wrangler dry-run aprovados.
+- E2E atualizado para aprovação; execução local bloqueada antes de abrir a aplicação por ausência de Chromium e falha no download do navegador. Wrangler dev também encontra erro de enumeração de interfaces neste ambiente; o Worker foi exercitado em Miniflare/workerd. Validação E2E deve ocorrer no CI antes do merge.
+- Limites: Google login/Calendar, e-mail, recorrência e múltiplos profissionais continuam pendentes. Outbox em awaiting_integration não significa notificação enviada. Checklist de clientes reais não foi liberado.
+
 ## 2026-10-21 — prazos aprovados para o piloto
 
 - Documentação v1.2: antecedência mínima de 48 horas corridas para solicitação pública; aprovação em até 24 horas corridas desde a criação.

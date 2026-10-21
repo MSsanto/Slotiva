@@ -1,8 +1,10 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { build } from "esbuild";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
 import { passwordHash } from "../worker/security";
+import worker from "../worker/index";
+import type { Env } from "../worker/types";
 import { today } from "../worker/booking";
 let mf: Miniflare;
 let db: D1Database;
@@ -10,6 +12,7 @@ const base = "http://localhost";
 const origin = { Origin: base };
 function day() {
   const d = new Date(`${today()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 2);
   do {
     d.setUTCDate(d.getUTCDate() + 1);
   } while ([0, 6].includes(d.getUTCDay()));
@@ -60,7 +63,7 @@ beforeAll(async () => {
       modules: true,
       script: bundle.outputFiles[0].text,
       compatibilityDate: "2026-10-19",
-      d1Databases: ["DB"],
+      d1Databases: ["DB", "LEGACY"],
       bindings: {
         COOKIE_SECURE: "false",
         ADMIN_PASSWORD_HASH: await passwordHash("test-password-long"),
@@ -70,14 +73,20 @@ beforeAll(async () => {
   );
   db = await mf.getD1Database("DB");
   // D1 exec treats newline-separated input as separate statements; keep the full migration on one line.
-  const sql = await readFile("migrations/0001_initial.sql", "utf8");
-  await db.exec(sql.replace(/--.*$/gm, "").replace(/\s+/g, " "));
+  for (const file of (await readdir("migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort()) {
+    const sql = await readFile(`migrations/${file}`, "utf8");
+    await db.exec(sql.replace(/--.*$/gm, "").replace(/\s+/g, " "));
+  }
 }, 30000);
 afterAll(async () => {
   await mf?.dispose();
 });
 beforeEach(async () => {
   await db.batch([
+    db.prepare("DELETE FROM notification_outbox"),
+    db.prepare("DELETE FROM booking_events"),
     db.prepare("DELETE FROM occupied_slots"),
     db.prepare("DELETE FROM bookings"),
     db.prepare("DELETE FROM sessions"),
@@ -109,7 +118,7 @@ describe("Cloudflare Worker + D1", () => {
     const statement = () =>
       db
         .prepare(
-          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash) VALUES (?,'consulting',?,0,9999999999,540,600,615,'Demo','demo@example.com','hash')`,
+          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at) VALUES (?,'consulting',?,0,9999999999,540,600,615,'Demo','demo@example.com','hash',unixepoch()+86400)`,
         )
         .bind(crypto.randomUUID(), day());
     const results = await Promise.allSettled([
@@ -279,5 +288,313 @@ describe("Cloudflare Worker + D1", () => {
     );
     expect(r.status).toBe(200);
     expect(r.headers.get("Cache-Control")).toBe("no-store");
+  });
+});
+
+// Fixture historical deadlines without changing the runtime clock or weakening production guards.
+async function expiredFixture(deadlineOffset = 0) {
+  const trigger = await db
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='approval_insert'",
+    )
+    .first<{ sql: string }>();
+  await db.exec("DROP TRIGGER approval_insert");
+  const id = crypto.randomUUID(),
+    secret = "e".repeat(64);
+  try {
+    await db
+      .prepare(
+        `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,created_at,approval_expires_at)
+      VALUES (?,'consulting',?,0,9999999999,540,600,615,'Expired','expired@example.com',?,unixepoch()-86400+?,unixepoch()+?)`,
+      )
+      .bind(
+        id,
+        day(),
+        await (await import("../worker/security")).digest(secret),
+        deadlineOffset,
+        deadlineOffset,
+      )
+      .run();
+  } finally {
+    await db.exec(trigger!.sql.replace(/\s+/g, " "));
+  }
+  return { id, secret };
+}
+const counts = async (table: string) =>
+  (await db
+    .prepare(`SELECT count(*) AS n FROM ${table}`)
+    .first<{ n: number }>())!.n;
+
+describe("professional approval lifecycle", () => {
+  it("enforces minimum notice at the database boundary and reports migrated health", async () => {
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at)
+      VALUES (?,'consulting',?,0,unixepoch()+172799,540,600,615,'Demo','demo@example.com','hash',unixepoch()+86400)`,
+        )
+        .bind(crypto.randomUUID(), day())
+        .run(),
+    ).rejects.toThrow("MINIMUM_NOTICE");
+    expect(await counts("occupied_slots")).toBe(0);
+    expect((await request("/api/health")).status).toBe(200);
+  });
+
+  it("creates pending requests with 24h expiry and 48h notice, with no notification before approval", async () => {
+    const response = await request("/api/bookings", "POST", payload());
+    const b = (await response.json()) as {
+      id: string;
+      status: string;
+      approvalExpiresAt: number;
+      version: number;
+      cancelToken: string;
+    };
+    expect(response.status).toBe(201);
+    expect(b.status).toBe("pending_approval");
+    expect(b.version).toBe(1);
+    const stored = await db
+      .prepare("SELECT created_at,approval_expires_at FROM bookings WHERE id=?")
+      .bind(b.id)
+      .first<{ created_at: number; approval_expires_at: number }>();
+    expect(stored!.approval_expires_at - stored!.created_at).toBe(86400);
+    expect(await counts("notification_outbox")).toBe(0);
+    const status = await request(`/api/bookings/${b.id}`, "GET", undefined, {
+      "X-Cancel-Token": b.cancelToken,
+    });
+    expect(((await status.json()) as { status: string }).status).toBe(
+      "pending_approval",
+    );
+    expect((await request(`/api/bookings/${b.id}`)).status).toBe(404);
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 1);
+    expect(
+      (
+        await request("/api/bookings", "POST", {
+          ...payload(),
+          date: d.toISOString().slice(0, 10),
+        })
+      ).status,
+    ).toBe(422);
+  });
+  it("allows only authenticated same-origin professional decisions, and queues approval once", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string; version: number; cancelToken: string };
+    const url = `/api/admin/bookings/${b.id}/approve`;
+    expect(
+      (
+        await request(
+          url,
+          "POST",
+          { version: 1 },
+          { ...origin, "X-Cancel-Token": b.cancelToken },
+        )
+      ).status,
+    ).toBe(401);
+    const headers = await admin();
+    expect(
+      (await request(url, "POST", { version: 1 }, { Cookie: headers.Cookie }))
+        .status,
+    ).toBe(403);
+    expect((await request(url, "POST", { version: 2 }, headers)).status).toBe(
+      409,
+    );
+    const r = await request(url, "POST", { version: 1 }, headers);
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { status: string }).status).toBe("confirmed");
+    expect((await request(url, "POST", { version: 1 }, headers)).status).toBe(
+      200,
+    );
+    expect(await counts("booking_events")).toBe(1);
+    expect(await counts("notification_outbox")).toBe(1);
+    const job = await db
+      .prepare("SELECT state,kind FROM notification_outbox")
+      .first<{ state: string; kind: string }>();
+    expect(job).toEqual({ state: "awaiting_integration", kind: "confirmed" });
+    expect(
+      (
+        await request(
+          `/api/bookings/${b.id}`,
+          "PUT",
+          { date: day(), time: "13:00" },
+          { "X-Cancel-Token": b.cancelToken },
+        )
+      ).status,
+    ).toBe(409);
+  });
+  it("serializes simultaneous approve/reject decisions and permits no second outcome", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string };
+    const headers = await admin();
+    const responses = await Promise.all(
+      ["approve", "reject"].map((action) =>
+        request(
+          `/api/admin/bookings/${b.id}/${action}`,
+          "POST",
+          { version: 1 },
+          headers,
+        ),
+      ),
+    );
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(await counts("booking_events")).toBe(1);
+    expect(await counts("notification_outbox")).toBe(1);
+  });
+  it("rejects a request, releases its intervals and does not approve it later", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string };
+    const headers = await admin();
+    const url = `/api/admin/bookings/${b.id}`;
+    expect(
+      (await request(url + "/reject", "POST", { version: 1 }, headers)).status,
+    ).toBe(200);
+    expect(await counts("occupied_slots")).toBe(0);
+    expect(
+      (await request(url + "/reject", "POST", { version: 1 }, headers)).status,
+    ).toBe(200);
+    expect(
+      (await request(url + "/approve", "POST", { version: 1 }, headers)).status,
+    ).toBe(409);
+    expect((await request("/api/bookings", "POST", payload())).status).toBe(
+      201,
+    );
+    expect(await counts("notification_outbox")).toBe(1);
+  });
+  it("expires at the exact deadline, releases intervals and queues an expiry notice only once", async () => {
+    const { id, secret } = await expiredFixture();
+    expect(await counts("occupied_slots")).toBe(5);
+    const headers = await admin();
+    const results = await Promise.all([
+      request(
+        `/api/admin/bookings/${id}/approve`,
+        "POST",
+        { version: 1 },
+        headers,
+      ),
+      request(`/api/availability?date=${day()}&serviceId=consulting`),
+    ]);
+    expect(results[0].status).toBe(409);
+    expect(await counts("occupied_slots")).toBe(0);
+    const r = await request(`/api/bookings/${id}`, "GET", undefined, {
+      "X-Cancel-Token": secret,
+    });
+    expect(((await r.json()) as { status: string }).status).toBe("expired");
+    expect(await counts("booking_events")).toBe(1);
+    expect(await counts("notification_outbox")).toBe(1);
+    expect(
+      (await db
+        .prepare("SELECT kind FROM notification_outbox")
+        .first<{ kind: string }>())!.kind,
+    ).toBe("expired");
+    expect((await request("/api/bookings", "POST", payload())).status).toBe(
+      201,
+    );
+  });
+  it("keeps approval valid before the deadline and enforces expiry at DB level", async () => {
+    const { id } = await expiredFixture(60);
+    const headers = await admin();
+    expect(
+      (
+        await request(
+          `/api/admin/bookings/${id}/approve`,
+          "POST",
+          { version: 1 },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
+    await request(`/api/admin/bookings/${id}`, "DELETE", undefined, headers);
+    const { id: expired } = await expiredFixture(-1);
+    await expect(
+      db
+        .prepare(
+          "UPDATE bookings SET status='confirmed',version=version+1 WHERE id=?",
+        )
+        .bind(expired)
+        .run(),
+    ).rejects.toThrow("INVALID_TRANSITION");
+  });
+  it("does not extend pending deadlines when changing the requested time", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string; cancelToken: string; approvalExpiresAt: number };
+    const response = await request(
+      `/api/bookings/${b.id}`,
+      "PUT",
+      { date: day(), time: "13:00" },
+      { "X-Cancel-Token": b.cancelToken },
+    );
+    const moved = (await response.json()) as {
+      status: string;
+      approvalExpiresAt: number;
+      version: number;
+    };
+    expect(response.status).toBe(200);
+    expect(moved.status).toBe("pending_approval");
+    expect(moved.approvalExpiresAt).toBe(b.approvalExpiresAt);
+    expect(moved.version).toBe(2);
+  });
+});
+
+describe("migration and scheduled expiry", () => {
+  it("preserves pre-approval live and cancelled reservations", async () => {
+    const legacy = await mf.getD1Database("LEGACY");
+    const apply = async (file: string) =>
+      legacy.exec(
+        (await readFile(file, "utf8"))
+          .replace(/--.*$/gm, "")
+          .replace(/\s+/g, " "),
+      );
+    await apply("migrations/0001_initial.sql");
+    await legacy
+      .prepare(
+        `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash)
+      VALUES ('legacy','consulting',?,0,9999999999,540,600,615,'Legacy','legacy@example.com','hash')`,
+      )
+      .bind(day())
+      .run();
+    await legacy
+      .prepare(
+        `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,cancelled)
+      VALUES ('cancelled','consulting',?,0,9999999999,540,600,615,'Legacy','legacy@example.com','hash',1)`,
+      )
+      .bind(day())
+      .run();
+    await apply("migrations/0002_professional_approval.sql");
+    expect(
+      (await legacy
+        .prepare("SELECT status FROM bookings WHERE id='legacy'")
+        .first<{ status: string }>())!.status,
+    ).toBe("confirmed");
+    expect(
+      (await legacy
+        .prepare("SELECT status FROM bookings WHERE id='cancelled'")
+        .first<{ status: string }>())!.status,
+    ).toBe("cancelled");
+    expect(
+      (await legacy
+        .prepare("SELECT count(*) AS n FROM occupied_slots")
+        .first<{ n: number }>())!.n,
+    ).toBe(5);
+    expect(
+      (await legacy
+        .prepare("SELECT count(*) AS n FROM notification_outbox")
+        .first<{ n: number }>())!.n,
+    ).toBe(0);
+  });
+  it("expires without an HTTP request and remains safe on repeated scheduled execution", async () => {
+    const { id } = await expiredFixture(-1);
+    await worker.scheduled({} as ScheduledController, { DB: db } as Env);
+    await worker.scheduled({} as ScheduledController, { DB: db } as Env);
+    expect(
+      (await db
+        .prepare("SELECT status FROM bookings WHERE id=?")
+        .bind(id)
+        .first<{ status: string }>())!.status,
+    ).toBe("expired");
+    expect(await counts("occupied_slots")).toBe(0);
+    expect(await counts("notification_outbox")).toBe(1);
   });
 });

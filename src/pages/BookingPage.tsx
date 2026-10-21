@@ -7,6 +7,9 @@ import {
   api,
   errorMessage,
   formatDate,
+  formatDeadline,
+  statusLabel,
+  type Booking,
   nextDays,
   type Receipt,
   type Service,
@@ -49,6 +52,19 @@ export default function BookingPage() {
       api<string[]>(`/availability?date=${date}&serviceId=${serviceId}`),
     enabled: !!date,
   });
+  const receiptState = useQuery({
+    queryKey: ["receipt", confirmed?.id],
+    queryFn: () =>
+      api<Booking>(`/bookings/${confirmed!.id}`, {
+        headers: { "X-Cancel-Token": confirmed!.cancelToken },
+      }),
+    enabled: !!confirmed,
+    refetchInterval: 15000,
+    retry: false,
+  });
+  const current = receiptState.data ?? confirmed;
+  const active =
+    current?.status === "pending_approval" || current?.status === "confirmed";
   const service = services.data?.find((s) => s.id === serviceId);
   const booking = useMutation({
     mutationFn: (contact: Contact) =>
@@ -57,6 +73,7 @@ export default function BookingPage() {
         body: JSON.stringify({ ...contact, serviceId, date, time }),
       }),
     onSuccess: (receipt) => {
+      queryClient.removeQueries({ queryKey: ["receipt", receipt.id] });
       setConfirmed(receipt);
       setNotice("");
       reset();
@@ -89,6 +106,7 @@ export default function BookingPage() {
         body: JSON.stringify({ date, time }),
       }),
     onSuccess: (receipt) => {
+      queryClient.removeQueries({ queryKey: ["receipt", receipt.id] });
       setConfirmed(receipt);
       setRescheduling(false);
       setTime("");
@@ -185,13 +203,37 @@ export default function BookingPage() {
     return (
       <section className="panel confirmation">
         <div className="check" aria-hidden="true">
-          ✓
+          {current?.status === "confirmed" ? "✓" : "…"}
         </div>
-        <span className="eyebrow">TUDO COMBINADO</span>
+        <span className="eyebrow">
+          {current && statusLabel(current.status)}
+        </span>
         <h2 tabIndex={-1} ref={heading}>
-          Seu próximo passo está marcado.
+          {current?.status === "confirmed"
+            ? "Seu horário foi confirmado."
+            : "Acompanhe sua solicitação."}
         </h2>
-        <p>{confirmed.name}, sua reserva foi salva.</p>
+        <p>
+          {confirmed.name},{" "}
+          {current?.status === "pending_approval"
+            ? "aguarde a aprovação do profissional em até 24 horas."
+            : current && statusLabel(current.status)}
+          .
+        </p>
+        {current?.status === "pending_approval" &&
+          current.approvalExpiresAt && (
+            <p>
+              Aprovação até {formatDeadline(current.approvalExpiresAt)}{" "}
+              (Brasília). Sem resposta, a solicitação expira e o horário é
+              liberado.
+            </p>
+          )}
+        {receiptState.isError && (
+          <p role="alert">
+            Não foi possível atualizar o estado.{" "}
+            {errorMessage(receiptState.error)}
+          </p>
+        )}
         <div className="receipt">
           <strong>
             {services.data?.find((s) => s.id === confirmed.serviceId)?.name}
@@ -202,10 +244,10 @@ export default function BookingPage() {
           <small>Horário de Brasília · Nenhum e-mail foi enviado.</small>
         </div>
         <p className="hint">
-          Mantenha esta página aberta para cancelar ou reagendar. O token de
-          gestão fica apenas na memória desta aba.
+          Mantenha esta página aberta para acompanhar sua solicitação.
+          Recuperação de acesso por e-mail ainda não está disponível.
         </p>
-        {rescheduling && (
+        {rescheduling && current?.status === "pending_approval" && (
           <div className="reschedule">
             {schedule()}
             <button
@@ -213,7 +255,7 @@ export default function BookingPage() {
               disabled={!time || move.isPending}
               onClick={() => move.mutate()}
             >
-              {move.isPending ? "Salvando…" : "Confirmar novo horário"}
+              {move.isPending ? "Salvando…" : "Alterar solicitação"}
             </button>
           </div>
         )}
@@ -236,24 +278,34 @@ export default function BookingPage() {
         >
           Fazer outro agendamento
         </button>
-        <button
-          className="text-button"
-          disabled={cancel.isPending || move.isPending}
-          onClick={() => {
-            setRescheduling(!rescheduling);
-            setDate("");
-            setTime("");
-          }}
-        >
-          {rescheduling ? "Voltar à confirmação" : "Reagendar"}
-        </button>
-        <button
-          className="text-button"
-          disabled={cancel.isPending || move.isPending}
-          onClick={() => cancel.mutate()}
-        >
-          {cancel.isPending ? "Cancelando…" : "Cancelar esta reserva"}
-        </button>
+        {current?.status === "pending_approval" && (
+          <button
+            className="text-button"
+            disabled={cancel.isPending || move.isPending}
+            onClick={() => {
+              setRescheduling(!rescheduling);
+              setDate("");
+              setTime("");
+            }}
+          >
+            {rescheduling ? "Voltar à solicitação" : "Alterar solicitação"}
+          </button>
+        )}
+        {current?.status === "confirmed" && (
+          <p>
+            Para remarcar, entre em contato com o profissional. Seu horário
+            atual permanece confirmado.
+          </p>
+        )}
+        {active && (
+          <button
+            className="text-button"
+            disabled={cancel.isPending || move.isPending}
+            onClick={() => cancel.mutate()}
+          >
+            {cancel.isPending ? "Cancelando…" : "Cancelar esta reserva"}
+          </button>
+        )}
       </section>
     );
   return (
@@ -284,6 +336,10 @@ export default function BookingPage() {
             <h2>Reserve seu momento</h2>
             <span className="step-label">3 PASSOS SIMPLES</span>
           </div>
+          <p className="hint">
+            Solicite com pelo menos 48 horas de antecedência. O horário só é
+            confirmado após aprovação do profissional, em até 24 horas.
+          </p>
           <fieldset>
             <legend>
               <b>1</b> Escolha o serviço
@@ -386,7 +442,7 @@ export default function BookingPage() {
                   booking.isPending || !date || !time || slots.isFetching
                 }
               >
-                {booking.isPending ? "Reservando…" : "Confirmar reserva"}{" "}
+                {booking.isPending ? "Enviando…" : "Solicitar agendamento"}{" "}
                 <span>↗</span>
               </button>
             </div>

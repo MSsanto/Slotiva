@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HttpError, type BookingRow } from "./types";
+import { HttpError, now, type BookingRow } from "./types";
 export const services = [
   {
     id: "discovery",
@@ -96,6 +96,13 @@ export function window(date: string, time: string, serviceId: string) {
   const startsAt = Date.parse(`${date}T${time}:00-03:00`) / 1000;
   return { start, end, until: end + 15, weekday, startsAt };
 }
+export function requireNotice(startsAt: number, at = now()) {
+  if (startsAt < at + 48 * 3600)
+    throw new HttpError(
+      422,
+      "Solicite com pelo menos 48 horas de antecedência.",
+    );
+}
 export function output(row: BookingRow) {
   return {
     id: row.id,
@@ -104,5 +111,8 @@ export function output(row: BookingRow) {
     time: clock(row.start_min),
     name: row.name,
     email: row.email,
+    status: row.status,
+    approvalExpiresAt: row.approval_expires_at,
+    version: row.version,
   };
 }
