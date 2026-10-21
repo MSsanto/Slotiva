@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "slotiva-preview-migrations",
+  "compatibility_date": "2026-10-19",
+  // Intentionally disabled: the old shared Preview still runs incompatible code.
+  // Set a NEW isolated homologation D1 here and in wrangler.jsonc previews together.
+  // Never restore the old Preview or production UUID for these migrations.
+  "d1_databases": []
+}

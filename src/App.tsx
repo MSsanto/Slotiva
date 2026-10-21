@@ -1,6 +1,17 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api, type ProfessionalProfile } from "./api";
+import { NavLink, Outlet, useMatch } from "react-router-dom";
 import "./App.css";
 export default function App() {
+  const match = useMatch("/p/:slug");
+  const slug = match?.params.slug;
+  const profile = useQuery({
+    queryKey: ["public-profile", slug ?? "demo"],
+    queryFn: () =>
+      api<ProfessionalProfile>(`/public/${encodeURIComponent(slug!)}/profile`),
+    enabled: !!slug,
+    retry: false,
+  });
   return (
     <>
       <a className="skip" href="#main">
@@ -12,7 +23,7 @@ export default function App() {
           <span className="brand-dot">.</span>
         </NavLink>
         <nav aria-label="Principal">
-          <NavLink to="/" end>
+          <NavLink to={slug ? `/p/${slug}` : "/"} end>
             Agendar
           </NavLink>
           <NavLink to="/admin">Minha agenda</NavLink>
@@ -20,19 +31,33 @@ export default function App() {
         <span className="demo">PORTFÓLIO · MVP</span>
       </header>
       <main id="main">
-        <section className="intro">
+        <section
+          className={`intro tenant-${(slug && profile.data?.theme) || "forest"}`}
+        >
           <div className="eyebrow">
             <span /> SEU TEMPO, BEM CUIDADO
           </div>
           <h1>
-            Um espaço na agenda.
-            <br />
-            <span>Um passo à frente.</span>
+            {slug && profile.data ? (
+              profile.data.headerTitle
+            ) : (
+              <>
+                Um espaço na agenda.
+                <br />
+                <span>Um passo à frente.</span>
+              </>
+            )}
           </h1>
           <p>
-            Encontre o melhor momento para sua próxima conversa.
-            <br />
-            Simples de marcar. Fácil de organizar.
+            {slug && profile.data ? (
+              profile.data.headerSubtitle
+            ) : (
+              <>
+                Encontre o melhor momento para sua próxima conversa.
+                <br />
+                Simples de marcar. Fácil de organizar.
+              </>
+            )}
           </p>
         </section>
         <Outlet />

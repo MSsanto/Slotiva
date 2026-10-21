@@ -1,24 +1,48 @@
-# Diretrizes do Slotiva
+# Slotiva contributor instructions
 
-## Golden Rule — GitHub é parte da entrega
+## Golden Rule — GitHub is part of every delivery
 
-**TODA MUDANÇA DEVERÁ SER REALIZADA E DOCUMENTADA NO GITHUB. VERSIONAMENTO É TÃO IMPORTANTE QUANTO IMPLEMENTAÇÃO.**
+**EVERY CHANGE MUST BE IMPLEMENTED AND DOCUMENTED ON GITHUB. VERSION CONTROL IS AS IMPORTANT AS IMPLEMENTATION.**
 
-Diretriz do responsável pelo projeto, registrada em 21/10/2026. Aplica-se a código, testes, documentação, configuração, migrações e decisões de arquitetura.
+Owner instruction recorded on 2026-10-21. Applies to implementation, tests,
+configuration, migrations, documentation and architecture decisions.
 
-- Trabalhar a partir do estado atual do repositório e preservar mudanças de terceiros.
-- Registrar alterações em commits descritivos e publicar no GitHub em branch ou PR adequada. Trabalho apenas local não é entrega concluída.
-- Atualizar a documentação afetada junto com a implementação e registrar em CHANGELOG.md o resultado, a validação e limitações relevantes. Decisões estruturais devem ter justificativa em docs.
-- Distinguir planejado, implementado, testado e publicado. Não anunciar funcionalidades ou sucesso de deploy sem evidência.
-- Executar verificações proporcionais à mudança. Para documentação, revisar conteúdo, links internos e diff; não alegar testes de aplicação não executados.
-- Ao concluir, informar referência do commit/PR, o que mudou, validação e pendências. Se o envio ao GitHub falhar, declarar a entrega pendente.
-- Nunca versionar segredos, credenciais, dados pessoais de clientes, bancos reais ou logs sensíveis. Documentar configurações externas por nomes e instruções, sem valores secretos.
-- Commit/push não autorizam, por si sós, deploy, migrations remotas ou alterações manuais de infraestrutura. Verificar automações existentes e respeitar o escopo autorizado.
+- Start from the current repository state and preserve work from other branches.
+- Publish descriptive commits and an appropriate branch/PR. Local-only changes
+  are not a completed delivery.
+- Update affected documentation and CHANGELOG.md with behavior, evidence and
+  limitations. Explain architecture decisions in docs. Maintained documentation
+  must be in English; application text may remain Portuguese.
+- Distinguish planned, implemented, tested and deployed. A passing test is not
+  proof of a deployment or permission to serve real customers.
+- Run relevant checks. For documentation, review content, local links and diffs;
+  do not claim application tests that were not run.
+- Report the commit/PR, resulting behavior, validation and outstanding work.
+  Failed GitHub publication means delivery remains pending.
+- Never commit secrets, credentials, customer data, live databases or sensitive
+  logs. Document external settings by name and procedure without secret values.
+- A commit/push alone does not authorize a production deployment or remote
+  migration. Inspect connected build automations and respect the authorized scope.
 
-## Produto e segurança
+## Product and security
 
-Slotiva é produto funcional destinado a clientes reais e também estudo de caso de portfólio. Demonstrações usam dados sintéticos e ambiente isolado.
+Slotiva targets a real scheduling product and a portfolio case study from one
+codebase. Demonstrations/homologation use fictional data and isolated resources.
+The README describes implemented behavior; the product specification describes
+requirements. Preserve D1 occupancy atomicity and enforce authorization on every
+administrative operation. Google authentication and professional authorization
+are separate checks. The implemented tenant boundary derives professional_id from the authenticated
+session or resolved public slug, never from a caller-supplied owner ID. A master
+manages professional accounts but cannot read their appointment APIs. Suspension
+revokes access; deletion removes the page and active reservations while preserving
+history. Each professional owns hours, bookings, occupancy and a public header.
 
-O README descreve o estado atual. docs/SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md descreve o objetivo e propostas; não substituir garantias existentes por alternativas sem inspeção e justificativa. Preservar atomicidade das reservas no D1, isolamento e autorização em todas as rotas.
+Professional-entered agreements may be confirmed in the creation action, with an
+actor and finite weekly/fortnightly occurrences. Public requests still require
+48-hour notice and explicit approval within 24 hours. Do not weaken public rules
+to support professional scheduling. Keep series creation atomic and retries safe.
 
-Login Google, conexão do Calendar, acesso por e-mail e recorrência são evolução planejada até implementação e validação. O checklist do piloto deve ser cumprido antes de atender clientes reais.
+Calendar, transactional delivery and client access recovery remain pending.
+The pilot checklist is mandatory before inviting real customers. Never migrate
+the older Preview database while an incompatible Worker can still write to it.
+Follow docs/HUMAN_VALIDATION.md.

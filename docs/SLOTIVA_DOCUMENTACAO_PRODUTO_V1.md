@@ -1,339 +1,215 @@
-# Slotiva — documentação de produto e engenharia
-
-Versão: 1.2 · Data: 21/10/2026 · Responsável: Matheus Sergio
-
-“Horários livres que viram encontros.”
-
-## 1. Objetivo e status
-
-Construir um produto de agendamento funcional para profissionais que atendem por horário, começando pela validação com um barbeiro e uma psicóloga. O mesmo projeto integra o portfólio como estudo de caso de engenharia e operação real.
-
-Esta documentação registra decisões da conversa e propostas de implementação. Não certifica funcionalidades existentes: o repositório e a infraestrutura não foram auditados nesta entrega. Nenhum cliente real deve ser cadastrado apenas porque este documento foi concluído.
-
-Convenções: **Definido** = requisito acordado; **Proposto** = decisão técnica inicial sujeita a validação; **Pendente** = depende de descoberta ou configuração. As seções técnicas descrevem o comportamento alvo, não o estado atual do código.
-
-## 2. Decisões de produto
-
-| Tema | Decisão | Estado |
-|---|---|---|
-| Posicionamento | Produto real e projeto de portfólio na mesma base de código | Definido |
-| Profissional | Entrada com Google | Definido |
-| Cliente | Reserva sem criar conta ou senha | Definido |
-| Recuperação de acesso | Link temporário enviado ao e-mail | Definido |
-| Identificação | ID interno permanente; e-mail/telefone como contatos | Definido |
-| Google Agenda | Inserir reservas e considerar horários ocupados | Definido como objetivo |
-| Agenda do cliente | Convite para aceitar na própria agenda | Proposto |
-| Confirmação | Somente após aprovação explícita do profissional | Definido |
-| Antecedência mínima no piloto | 48 horas corridas para solicitações públicas | Definido |
-| Prazo para aprovação no piloto | 24 horas corridas desde a solicitação; expiração libera o horário e gera aviso | Definido |
-| Convite ao cliente | Disparado após aprovação e criação do evento no Google | Definido |
-| Recorrência | Suportar séries de agendamentos | Definido |
-| Quem cria séries | Inicialmente o profissional | Proposto; validar com a psicóloga |
-| WhatsApp | Fora do primeiro escopo | Proposto após discussão de custos |
-| Hospedagem | Aproveitar Cloudflare existente, após inspeção | Proposto |
-| Pagamentos e prontuário | Fora do primeiro escopo | Proposto |
-
-O login Google não dá automaticamente permissão para acessar o Calendar. A conexão da agenda exige consentimento específico.
-
-## 3. Personas e jornadas
-
-### Profissional
-
-Entra com Google → configura perfil, serviços, duração, expediente e política de cancelamento → conecta uma agenda → revisa disponibilidade → acompanha reservas → bloqueia horários e gerencia séries.
-
-Cada profissional acessa somente seus dados. Entrar com uma conta Google válida não concede papel de administrador nem acesso a cadastros de terceiros. No piloto, o acesso profissional será por convite previamente autorizado; adesão pública depende de decisão posterior.
-
-### Cliente
-
-Abre a página pública do profissional → escolhe serviço e horário → informa nome, e-mail e telefone → envia solicitação → recebe aviso de pendência → profissional aprova → recebe confirmação e convite → gerencia a reserva por acesso temporário.
-
-Depois de sair, fechar o navegador ou trocar de aparelho: abre “Meus agendamentos”, informa e-mail e recebe novo link. Não precisa recordar senha. A resposta na tela não revela se o e-mail tem cadastro.
-
-### Falta de acesso ao e-mail
-
-O profissional trata a recuperação após verificação de identidade por procedimento definido no piloto. Informar telefone, nome ou e-mail não basta para trocar o contato. Registrar a alteração e revogar acessos anteriores; não usar perguntas com respostas públicas.
-
-## 4. Requisitos e critérios de aceitação
-
-| ID | Requisito | Critério verificável |
-|---|---|---|
-| RF01 | Login profissional Google | Token inválido, expirado ou de outro aplicativo é rejeitado |
-| RF02 | Isolamento por profissional | Profissional A não lê nem modifica dados de B, inclusive alterando IDs |
-| RF03 | Serviços | Serviço possui nome, duração e estado ativo; preço é opcional |
-| RF04 | Disponibilidade | Respeita expediente, fuso, duração, intervalos e bloqueios |
-| RF05 | Solicitação pública | Cliente solicita sem senha; status inicial pending_approval e mensagem explícita de aguardar aprovação |
-| RF06 | Concorrência | Duas tentativas simultâneas para intervalos sobrepostos geram no máximo uma reserva ativa |
-| RF07 | Acesso temporário | Link expirado, revogado ou já consumido não cria nova sessão |
-| RF08 | Gestão pelo cliente | Cliente acessa somente o escopo autorizado; regras de cancelamento são aplicadas no servidor |
-| RF09 | Integração Calendar | Só após aprovação há evento com convite; repetição de envio não duplica evento |
-| RF10 | Convite | Destinatário recebe convite com título discreto; entrega e aceitação não são presumidas |
-| RF11 | Recorrência | Série possui limite explícito; conflitos são exibidos antes de confirmar |
-| RF12 | Alteração de série | Distingue uma ocorrência de esta e as próximas; alterações são auditáveis |
-| RF13 | Operação degradada | Falha do Google ou e-mail fica visível e pode ser recuperada |
-| RF14 | Portfólio | Demonstração usa dados sintéticos e não expõe registros do piloto |
-
-### Regras de disponibilidade
-
-- Armazenar instantes em UTC e o fuso IANA do profissional, inicialmente America/Sao_Paulo.
-- Sobreposição usa intervalos semiabertos [início, fim): um atendimento pode começar quando o anterior termina, salvo intervalo configurado.
-- Preço, duração e regras aplicáveis são registrados na reserva para preservar o histórico após alteração do serviço.
-- Toda criação ou remarcação revalida disponibilidade no servidor.
-- Remarcar deve reservar o novo intervalo e liberar o antigo em uma operação consistente; falha mantém a reserva anterior.
-- No piloto, solicitações públicas exigem pelo menos 48 horas corridas de antecedência e têm prazo de aprovação de 24 horas corridas desde sua criação. Horizonte máximo, pausas e prazo de cancelamento continuam pendentes.
-
-## 5. Autenticação e autorização
-
-### ADR-001 — identidade Google e sessão própria
-
-Adotar integração oficial Google Identity Services. Backend valida assinatura, emissor, audiência e expiração do ID token com biblioteca compatível com o runtime. Aplicar proteção CSRF adequada ao fluxo utilizado; não confiar em token apenas decodificado no frontend.
-
-Vincular identidade por (provider=google, subject=sub), não por e-mail. Criar sessão própria com cookie Secure, HttpOnly e SameSite apropriado. Rotacionar sessão após autenticação; logout revoga a sessão no servidor. Definir duração, renovação e expiração antes de produção. Login, sessão e permissão de acesso ao profissional são verificações distintas.
-
-### ADR-002 — cliente sem senha
-
-Gerar link com token aleatório de alta entropia; armazenar somente hash, propósito, expiração, escopo e consumo. Proposta inicial: validade de 15 minutos e uso único, a validar em testes de usabilidade. Requisição de link tem limite por origem e destinatário e resposta genérica, sem expor existência de cadastro.
-
-O GET do link exibe uma página neutra; o consumo ocorre por ação explícita protegida, reduzindo consumo por scanners de e-mail. Após consumo atômico, criar sessão restrita e redirecionar para URL sem token. Não carregar analytics ou recursos de terceiros na página do token; usar política de referência restritiva e não registrar token em logs.
-
-O acesso deve ser limitado ao profissional e ao cadastro ou reserva autorizados. E-mail compartilhado não justifica reunir cadastros silenciosamente. Se houver ambiguidade, usar acesso a uma reserva específica e resolver o vínculo com o profissional. Contatos não verificados não autorizam anexar histórico existente a uma nova reserva.
-
-### ADR-003 — clientes e contatos
-
-ID interno é imutável. Normalizar telefone com código do país e DDD; validar e-mail sem remover pontos ou sufixos arbitrariamente. Não impor unicidade global a telefone/e-mail: contatos compartilhados e menores são casos possíveis. Correspondências conflitantes não causam fusão nem atualização automática. Deduplicação exige resolução explícita e auditada.
-
-## 6. Google Agenda e agenda do cliente
-
-### Conexão
-
-Fluxo OAuth no servidor, com redirecionamento cadastrado, validação de state e proteção PKCE quando suportada pelo fluxo/biblioteca. Solicitar somente os escopos necessários à agenda selecionada. Credenciais sensíveis ficam no backend, criptografadas em repouso, com chave separada dos dados. Nunca guardar refresh token no navegador ou no repositório.
-
-Acesso offline permite renovar credenciais para sincronização sem sessão aberta; não garante autorização permanente. Tratar revogação, expiração e necessidade de reconectar. Desconectar interrompe sincronização, remove credenciais armazenadas e apresenta claramente o destino dos eventos existentes.
-
-### ADR-004 — fonte de verdade e conflitos externos
-
-Slotiva controla reservas e regras de negócio; Google oferece visualização e ocupações externas. Ao aprovar, o banco confirma a reserva e registra uma tarefa de sincronização na mesma transação, após revalidar disponibilidade e autorização. O envio ao Google ocorre com idempotência e tentativas controladas. Mostrar separadamente “reserva confirmada” e “sincronização pendente/com erro”.
-
-Consultar ocupações externas antes da confirmação e manter reconciliação periódica. Não existe transação atômica entre nosso banco e a agenda Google: uma alteração externa simultânea ainda pode criar conflito. Ao detectá-lo, alertar o profissional e encaminhar resolução; não cancelar nem mover atendimento silenciosamente. Se não houver leitura confiável da agenda, suspender novas confirmações automáticas até recuperar ou obter revisão explícita.
-
-Proposta do piloto: alterações de reservas são feitas no Slotiva. Alterações externas de eventos vinculados são detectadas e apresentadas para reconciliação, sem sobrescrever silenciosamente a reserva. Convites do cliente só são enviados depois de criar com sucesso o evento correspondente.
-
-### Convite ao cliente
-
-Adicionar o e-mail como participante e solicitar envio das atualizações pelo Calendar. O cliente não conecta conta ao Slotiva. Aceitação, exibição automática e notificações dependem do provedor e das configurações do destinatário; não prometer inserção automática universal.
-
-Uma alternativa de exportação ICS pode ser oferecida, explicando que a importação isolada pode não acompanhar mudanças. Não enviar simultaneamente convite e arquivo de importação como se fossem duas reservas. Cancelamentos e alterações precisam preservar identificadores dos eventos e propagar atualizações.
-
-Usar título neutro, sem diagnóstico, relato clínico, motivo da consulta ou dados sensíveis na descrição. Eventos não podem revelar outros participantes atendidos pelo profissional.
-
-## 7. Recorrência
-
-Proposta inicial: profissional cria séries semanais ou quinzenais, com data final ou quantidade e limite máximo configurado. Cliente pode gerir ocorrências autorizadas, mas não cria séries públicas no primeiro piloto.
-
-Gerar ocorrências em horário local e converter individualmente para UTC. Validar todos os intervalos da série contra reservas e ocupações externas antes de confirmar. Proposta: conflito em qualquer ocorrência rejeita a série inteira e apresenta alternativas; não pular sessões sem aviso. Reservar todas as ocorrências atomicamente na fonte interna.
-
-Manter série e ocorrências explícitas no banco. Proposta técnica inicial: eventos individuais vinculados às ocorrências no Google, priorizando simplicidade de exceções; validar custo de chamadas e comportamento de convites antes de adotar. Série nativa do Calendar é alternativa, não decisão implementada.
-
-Operações suportadas: alterar/cancelar somente uma ocorrência; alterar/cancelar esta e as próximas. Preservar histórico passado. Toda mudança coletiva mostra resumo antes de confirmar. Nenhuma série ilimitada no piloto.
-
-## 8. Modelo de dados proposto
-
-| Entidade | Campos essenciais |
-|---|---|
-| professional | id, display_name, timezone, status |
-| identity | id, professional_id, provider, subject, email; unique(provider, subject) |
-| service | id, professional_id, name, duration_minutes, price, active |
-| client | id, professional_id, name, status |
-| client_contact | id, client_id, kind, normalized_value, verified_at |
-| availability_rule | id, professional_id, weekday, local_start, local_end |
-| schedule_block | id, professional_id, start_at, end_at |
-| booking_series | id, professional_id, client_id, recurrence_rule, timezone, end_condition |
-| booking | id, professional_id, client_id, service_id, series_id?, start_at, end_at, status, version, service_snapshot |
-| calendar_connection | id, professional_id, provider_subject, calendar_id, scopes, encrypted_credentials, status |
-| calendar_event_link | booking_id, connection_id, event_id, sync_status, external_version, last_synced_at |
-| access_token | id, token_hash, purpose, professional_id, client_id?, booking_id?, expires_at, consumed_at |
-| session | id_hash, principal_type, principal_id, professional_id, expires_at, revoked_at |
-| outbox_job | id, kind, aggregate_id, idempotency_key, payload, attempt, next_attempt_at, status |
-| audit_event | id, professional_id, actor_type, actor_id, action, resource_id, timestamp, correlation_id |
-
-Todas as referências entre dados de negócio devem garantir o mesmo professional_id. Índices cobrem disponibilidade por profissional/intervalo e contatos normalizados. Evitar cascatas destrutivas que apaguem histórico sem política definida.
-
-Status de reserva: pending_approval, confirmed, rejected, expired, cancelled, completed, no_show. Estado de sincronização é separado: pending, synced, failed, disconnected. Estado de verificação de contato também é separado.
-
-### ADR-005 — persistência e exclusão mútua
-
-React está definido como objetivo do projeto. Cloudflare Workers + D1 e mecanismo de serialização por profissional são proposta, não stack confirmada por inspeção. Uma consulta de disponibilidade seguida de INSERT sem proteção não satisfaz RF06.
-
-Escolher antes de implementar: serialização de todas as mutações de agenda por profissional (por exemplo, Durable Object, incluindo bloqueios e séries) com recuperação consistente; ou banco com restrição transacional adequada a intervalos. Unique(professional_id, start_at) sozinho não impede sobreposição de serviços com durações diferentes. Demonstrar a garantia com teste concorrente.
-
-## 9. Contrato de API proposto
-
-Prefixo /api/v1; contratos finais serão publicados em OpenAPI após inspeção do backend. Endpoints abaixo são desenho inicial.
-
-| Método e rota | Acesso e finalidade |
-|---|---|
-| POST /auth/google | Validar credencial e abrir sessão profissional |
-| POST /auth/logout | Revogar sessão atual |
-| POST /client-access/request | Público; solicitar link com resposta genérica |
-| POST /client-access/consume | Consumir token uma vez e abrir sessão restrita |
-| GET /public/professionals/{slug}/services | Listar serviços públicos |
-| GET /public/professionals/{slug}/availability | Listar horários sem expor nomes ou eventos externos |
-| POST /public/professionals/{slug}/bookings | Reservar; chave de idempotência obrigatória |
-| GET /client/bookings | Somente reservas do escopo autenticado |
-| POST /client/bookings/{id}/reschedule | Remarcar com versão esperada |
-| POST /client/bookings/{id}/cancel | Cancelar conforme política |
-| GET /professional/bookings | Agenda do profissional autenticado |
-| POST /professional/bookings/{id}/approve | Aprovar solicitação pendente com versão esperada e revalidação |
-| POST /professional/bookings/{id}/reject | Recusar solicitação pendente e liberar ocupação |
-| POST /professional/series | Criar série limitada; exige aprovação explícita do profissional |
-| POST /professional/series/{id}/changes | Aplicar escopo occurrence ou following |
-| GET /integrations/google/start | Iniciar consentimento autenticado |
-| GET /integrations/google/callback | Validar retorno OAuth e vincular conexão |
-| DELETE /integrations/google | Desconectar com política explícita para eventos |
-
-Convenções: 201 criação; 202 solicitação de e-mail aceita sem revelar cadastro; 400 entrada inválida; 401 sessão ausente/inválida; 403 ação não permitida; 404 recurso inexistente ou oculto ao solicitante; 409 conflito de horário/versão/idempotência; 429 limite excedido; 503 dependência indisponível quando impedir confirmação segura. Erros contêm código estável e correlation_id, sem detalhes sensíveis. Não confiar em professional_id ou client_id enviados pelo cliente para autorizar acesso.
-
-## 10. Segurança, privacidade e operação
-
-Este produto agenda atendimentos; não é prontuário. Não coletar diagnóstico, notas de sessão nem motivo clínico. Mesmo metadados de atendimento exigem tratamento cuidadoso; evitar exposição em logs, URL, métricas ou portfólio.
-
-Antes de clientes reais: definir aviso de privacidade, responsabilidades entre operador do produto e profissional, finalidade de coleta, retenção, exclusão/exportação, atendimento de solicitações e resposta a incidentes. Essas definições precisam de revisão adequada ao contexto; este documento não constitui análise jurídica.
-
-- Separar desenvolvimento, demonstração e produção, com credenciais e dados distintos.
-- Frontend nunca contém segredos. Logs não contêm tokens, contatos completos ou conteúdo privado de eventos.
-- Aplicar limites a reserva e envio de links; confirmação de reserva não comprova titularidade do contato informado.
-- Proteger sessões, rotas de mutação, validações e alterações de e-mail. Nenhuma integração externa pode desabilitar autorização interna.
-- Fazer backup protegido e testar restauração. Proposta de piloto: RPO de 24 horas e RTO de 4 horas, somente após demonstrar capacidade de cumprir e acordar com o profissional.
-- Monitorar falhas de autenticação, conflitos, fila de sincronização, e-mails rejeitados e conexões revogadas com correlation_id.
-- Tarefas têm limite de tentativas e fila de falhas para intervenção; repetir operação não duplica reserva, convite ou evento.
-- Definir responsável e canal de suporte; não prometer disponibilidade permanente sem capacidade operacional.
-
-### Procedimentos mínimos
-
-Google indisponível: sinalizar desconexão/atraso, preservar reservas, pausar confirmações que dependam de disponibilidade externa, retentar e reconciliar. E-mail indisponível: não exibir token ao público; registrar pendência e permitir reenvio controlado. Suspeita de vazamento: revogar sessões/credenciais afetadas, preservar evidências sem expor conteúdo e acionar responsáveis. Restauração: validar integridade e reconciliar eventos externos antes de reabrir reservas.
-
-## 11. Plano de implementação
-
-| Etapa | Entrega | Condição de saída |
-|---|---|---|
-| 0 — diagnóstico | Inspecionar repositório, stack, banco, deploy e testes existentes | Mapa de diferenças entre estado atual e documento |
-| 1 — identidade | Google login, sessão e autorização por profissional | Testes de tokens e isolamento aprovados |
-| 2 — reservas | Serviços, disponibilidade, bloqueios e reserva sem conta | Concorrência e remarcação atômica demonstradas |
-| 3 — cliente | E-mail transacional, link temporário e recuperação | Uso único, expiração, abuso e escopo validados |
-| 4 — Calendar | OAuth, eventos, convites, fila e reconciliação | Revogação, indisponibilidade e repetição testadas |
-| 5 — recorrência | Série limitada e exceções | Conflitos e mudança de próximas sessões testados |
-| 6 — piloto | Operação assistida com profissionais e clientes reais | Checklist abaixo atendido e aceite registrado |
-
-Não há estimativa de prazo fechada até concluir a etapa 0. Não há deploy ou alteração de infraestrutura autorizada implicitamente por esta documentação.
-
-## 12. Testes e liberação do piloto
-
-- [ ] Token Google falso, expirado e com audiência errada são rejeitados.
-- [ ] Profissional não autorizado não recebe acesso administrativo.
-- [ ] Alterar IDs não permite acesso entre profissionais nem entre clientes.
-- [ ] Links expiram, são consumidos atomicamente e resistem a repetição e scanners.
-- [ ] E-mails/telefones compartilhados ou conflitantes não juntam históricos.
-- [ ] Reserva simultânea e intervalos parcialmente sobrepostos não geram duplicidade.
-- [ ] Cancelamento e remarcação respeitam prazo e mantêm consistência sob falha.
-- [ ] Fuso, limites de expediente, pausas e duração são respeitados.
-- [ ] Série conflitante não é criada parcialmente; exceções mantêm histórico.
-- [ ] Tentativas repetidas de sincronização não duplicam eventos nem convites.
-- [ ] Cliente recebe convite; aceitação e mudança/cancelamento são verificados em contas de teste.
-- [ ] Revogação Google, falha de envio e alteração externa têm recuperação testada.
-- [ ] Backup restaurado em ambiente isolado; operação e suporte definidos.
-- [ ] Avisos, retenção e responsabilidades de dados revisados para o piloto.
-- [ ] Fluxo utilizável no celular, teclado e leitor de tela; erros claros.
-- [ ] Demo sem dados reais e sem acesso a credenciais de produção.
-- [ ] Profissional valida fluxo completo com dados fictícios antes de convidar clientes.
-
-## 13. Custos e viabilidade
-
-Login Google direto não pressupõe assinatura de um provedor de autenticação. Uso padrão da API Calendar é informado pelo Google como sem custo adicional, sujeito a cotas. Workers possui plano gratuito e pago a partir de US$ 5/mês, com excedentes. Esses preços não incluem todos os serviços de banco, coordenação, filas, e-mail, domínio ou suporte.
-
-A faixa anteriormente discutida de R$ 0–40/mês é hipótese de hospedagem inicial, não orçamento completo nem garantia operacional. Acesso sem senha depende de e-mail transacional: escolher fornecedor, configurar remetente e autenticação de domínio, testar entrega e conferir preços. Conversão cambial, impostos e eventual plano pago variam. Revisar custos após definir a arquitetura e medir consumo. WhatsApp permanece fora desta estimativa.
-
-## 14. Pendências de descoberta
-
-1. Barbeiro atende sozinho? Psicóloga atende menores ou usa contatos de responsáveis?
-2. Cliente escolhe horário fixo recorrente ou só a profissional cria séries?
-3. Quais serviços, durações, pausas, prazos e limites de reserva?
-4. Qual agenda Google será conectada e quais outras precisam bloquear disponibilidade?
-5. Qual comportamento desejado para alterações feitas diretamente no Google?
-6. Quem paga infraestrutura, responde suporte e administra o produto?
-7. Qual domínio/remetente de e-mail e qual política de dados para o piloto?
-8. Quais funcionalidades, migrations e proteções já existem no repositório?
-
-## 15. Portfólio e evidências
-
-Manter uma base de código e separar ambientes/dados. Publicar estudo de caso com problema, decisões, arquitetura, testes e resultados autorizados. Não divulgar nomes de clientes, agendas, contatos, capturas de atendimentos ou métricas identificáveis. Uso real só deve ser declarado depois de ocorrer; não usar “100% funcional” como substituto de evidências de aceitação.
-
-Indicadores propostos: conclusão de reservas, conflitos impedidos, tempo de sincronização, falhas de e-mail e solicitações de suporte. Coletar somente o necessário e publicar apenas agregados autorizados.
-
-## 16. Referências oficiais
-
-Consultadas durante a conversa; confirmar requisitos e preços na implementação:
-
-- Google Identity Services: https://developers.google.com/identity/gsi/web/guides/overview
-- Validação de ID token: https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
-- OAuth servidor e acesso offline: https://developers.google.com/identity/protocols/oauth2/web-server
-- Cotas Calendar: https://developers.google.com/workspace/calendar/api/guides/quota
-- Cloudflare Workers: https://developers.cloudflare.com/workers/platform/pricing/
-
-## 17. Histórico
-
-v1.0 — consolida produto real com demonstração de portfólio, acesso Google profissional, cliente sem senha, acesso por e-mail, integração de agenda, recorrência e critérios de piloto. Documento preparado sem alteração de código ou publicação.
-
-## 18. ADR-006 — aprovação profissional obrigatória (v1.1)
-
-Regra definida pelo responsável: o envio pelo cliente é uma solicitação; somente ação explícita do profissional confirma o agendamento. Esta seção prevalece sobre referências anteriores a confirmação automática. Mudança de requisito, ainda não implementada.
-
-### Fluxo e notificações
-
-1. Criar pending_approval sem evento com participante e sem convite. A tela e eventual e-mail dizem “Solicitação recebida — aguardando aprovação”, nunca “Confirmado”.
-2. Profissional aprova ou recusa no painel autenticado. Revalidar disponibilidade externa e interna; falha de leitura externa impede aprovação automática até revisão/recuperação.
-3. Aprovação transita atomicamente para confirmed e grava trabalho na outbox, com ator, data e versão. Repetir o comando não repete a confirmação nem o convite.
-4. Criar evento Google com e-mail do cliente em attendees e sendUpdates=all. O Google envia o convite; e-mail transacional próprio pode complementar a confirmação, sem criar outro evento.
-5. Falha de integração mantém confirmed com sincronização pendente/erro, avisa o profissional e agenda nova tentativa. Não presumir entrega ou aceitação do convite.
-6. Recusa, expiração e cancelamento liberam ocupação interna e podem gerar aviso apropriado, nunca convite. Transição concorrente com aprovação deve ter somente um resultado válido.
-
-### Ocupação enquanto pendente — política definida para o piloto
-
-Solicitação pública exige antecedência mínima de 48 horas corridas e segura o horário no Slotiva por até 24 horas corridas desde a criação, com expiração atômica. Os prazos foram aprovados pelo responsável pelo produto. Não há exceção pública para horários próximos no piloto. Pending e confirmed competem pela mesma proteção contra sobreposição. Solicitações públicas têm limites para impedir retenção abusiva de horários. Não criar evento Google pendente neste fluxo; por isso, alterações externas ainda exigem revalidação na aprovação. Aprovação após expiração exige nova validação e não reativa silenciosamente a solicitação.
-
-### Remarcação e séries
-
-Proposta: cliente solicita novo horário e o profissional aprova. A reserva confirmada original permanece válida até aprovação; a solicitação de mudança possui estado próprio. Aprovação troca os intervalos consistentemente e atualiza o mesmo evento/convite. Recusa ou expiração mantém o original e libera eventual retenção do novo horário. Não aplicar o endpoint antigo de remarcação imediata ao fluxo do cliente.
-
-A aprovação de uma série deve mostrar todas as ocorrências e conflitos. Nenhuma ocorrência é convidada antes de aprovada. Criação pelo profissional pode incluir aprovação na mesma ação, desde que explícita e auditada.
-
-### Critérios adicionais de aceitação
-
-- Solicitação inicial nunca aparece como confirmada nem envia convite.
-- Apenas o profissional autorizado pode aprovar/recusar; token do cliente não pode confirmar.
-- Aprovação duplicada e corrida entre expiração, recusa e aprovação não duplicam ocupação, evento ou notificações.
-- Antecedência mínima de 48 horas e prazo de aprovação de 24 horas são aplicados no servidor, exibidos e testados antes do piloto.
-- Falhas de Google/e-mail não escondem estado nem produzem confirmação falsa de entrega.
-- Testar remarcação pendente, conservação do horário original e aprovação de séries.
-
-Referência oficial para convites: https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
-
-v1.1 — acrescenta aprovação profissional obrigatória e convite após aprovação; define propostas de retenção pendente e remarcação para validação.
-
-## 19. ADR-007 — antecedência e expiração do piloto (v1.2)
-
-Decisão aprovada: solicitações públicas só podem ser criadas para início a pelo menos 48 horas corridas do instante de criação. Cada solicitação permanece pending_approval por no máximo 24 horas corridas, bloqueando o intervalo no Slotiva. Não são horas úteis.
-
-- Calcular no servidor: start_at >= created_at + 48h; approval_expires_at = created_at + 24h. Armazenar ambos em UTC e exibir no fuso do profissional.
-- Aprovação só é válida quando now < approval_expires_at, com solicitação ainda pendente, versão válida e disponibilidade revalidada. No instante exato do vencimento, expiração prevalece.
-- Ao vencer sem decisão, transitar atomicamente para expired, liberar a ocupação e enfileirar aviso ao cliente. Não criar convite Google.
-- A aprovação e a expiração usam controle transacional para impedir que ambas vençam. Job periódico processa expirações; consultas e mutações tratam pendências vencidas como expiradas, sem depender apenas da pontualidade do job. Implementar liberação segura no mecanismo de ocupação existente.
-- Antes da confirmação, informar “Aguardando aprovação — ainda não confirmado” e a data/hora limite. Na expiração, comunicar que a solicitação não foi confirmada e oferecer nova solicitação.
-- Aplicar a antecedência também ao novo horário solicitado pelo cliente em remarcação; a reserva original segue válida até aprovação da troca. Este é detalhamento técnico da política, sujeito à validação do fluxo de remarcação.
-- Para séries públicas, caso venham a existir, a primeira ocorrência deve atender ao limite. Série criada pelo profissional e exceções administrativas não ganham bypass implícito; regras específicas precisam ser acordadas e auditadas.
-
-### Exemplos e aceitação
-
-Solicitação segunda-feira às 10h: primeiro início permitido quarta-feira às 10h; prazo de aprovação termina terça-feira às 10h. Aprovar antes desse limite confirma; no limite ou depois, não confirma a solicitação expirada.
-
-Testar limites exatos e imediatamente anteriores: 47h59min não atende; 48h atende; aprovação antes de 24h pode ocorrer; em 24h não. Cobrir relógio do servidor, corrida aprovação/expiração, repetição do job, liberação do intervalo e aviso sem duplicidade. Para falhas ambíguas de envio de e-mail, não alegar garantia universal de entrega única: usar deduplicação/idempotência do provedor quando disponível e registrar estado.
-
-v1.2 — fixa 48h de antecedência e 24h de aprovação para o piloto, com expiração, liberação e aviso. Requisito documentado; implementação e testes de aplicação pendentes.
+# Slotiva — product and engineering requirements
+
+Requirements version 1.3 · 2026-10-21 · Owner: Matheus Sergio.
+This English revision preserves earlier decisions and adds master administration,
+professional URLs/headers and the psychologist's weekly/fortnightly workflow.
+Earlier wording remains in Git history. Requirements describe the target; the
+[README](../README.md) and [API](API.md) define implemented 0.5.0 behavior.
+
+## Purpose and current state
+
+Build a scheduling product for appointment-based professionals, initially a barber
+and a psychologist, with one codebase also serving as a portfolio case study.
+Demonstration data/resources must remain separate from any eventual live pilot.
+Do not present a specification, passing tests or successful upload as live readiness.
+
+| Capability                           | Decision and implementation state                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Master administration                | Required; implemented Google master role creates, suspends, removes professionals                               |
+| Professional page                    | Required; implemented stable /p/{slug}, name, header/subtitle/theme                                             |
+| Professional identity                | Google required; code and synthetic-token tests implemented; real OAuth validation pending                      |
+| Tenant isolation                     | Required; implemented session/slug ownership and tenant-scoped occupancy/hours                                  |
+| Customer signup                      | No account/password required; current one-booking capability is memory-only                                     |
+| Customer recovery                    | Temporary email links required; not implemented                                                                 |
+| Public confirmation                  | Professional approval required; implemented pending requests, >=48h notice, 24h decision window                 |
+| Internal agreements                  | Professional enters already agreed time; implemented single/weekly/fortnightly finite series                    |
+| Google Calendar                      | Create events and consider external busy time; not implemented                                                  |
+| Customer invite                      | Only after explicit approval and successful Calendar creation; not implemented                                  |
+| Services                             | Per-professional active names/durations and optional prices required; current fixed 30/45/60 catalog is interim |
+| Clinical records, payments, WhatsApp | Outside initial scope                                                                                           |
+| Deployment                           | Workers/D1 implemented; this increment is a PR, not a production release                                        |
+
+## Journeys and acceptance
+
+The master signs in with an explicitly authorized Google identity, provisions a
+professional and public slug/header, then manages suspension/removal. A Google
+account alone never grants a role. The master lifecycle platform does not imply
+access to patient/customer appointments. The initial professional enrollment is
+invitation-only; public self-registration is a separate decision.
+
+A professional signs in, configures their page/hours, reviews public requests,
+approves/rejects and enters agreed appointments. The psychologist specifically
+reported agreeing a fixed weekly or fortnightly time with the patient and entering
+it herself. Professional-created series therefore explicitly confirm the agreement
+at creation. They must not require each patient to request every occurrence or
+reapply the public 48h/24h workflow to an already agreed series. The initial
+implementation has finite count, no automatic renewal and no clinical content.
+
+A customer opens the professional's URL, chooses service/time and submits contact
+data without a password. They see “pending — not confirmed” and the decision
+deadline. Only professional approval confirms. A future notification/invite flow
+must distinguish booking confirmation, sync status, message delivery and acceptance.
+Customers eventually recover access using email, without contact enumeration.
+The current memory token is an interim capability, not that recovered access.
+
+| ID   | Required acceptance                                                                             |
+| ---- | ----------------------------------------------------------------------------------------------- |
+| RF01 | Forged/expired/wrong-audience Google tokens cannot authorize access                             |
+| RF02 | A cannot read/change B's appointments, hours, branding or series by changing IDs                |
+| RF03 | Per-professional service configuration preserves booked duration/price snapshots; still pending |
+| RF04 | Availability respects tenant, local time, hours, duration, buffers and blocks                   |
+| RF05 | Public creation is pending, >=48 elapsed hours ahead; approval expires at 24 elapsed hours      |
+| RF06 | Concurrent overlapping writes produce at most one active internal reservation per professional  |
+| RF07 | Future email links expire, consume once atomically and resist scanners/replay                   |
+| RF08 | Customer access is restricted to the granted booking/tenant; contacts alone grant no history    |
+| RF09 | Calendar retries do not duplicate events; external conflicts become visible and recoverable     |
+| RF10 | Invitations use neutral titles; delivery and acceptance are never assumed                       |
+| RF11 | Finite series creates all dates atomically or rejects all; no silent skipped occurrence         |
+| RF12 | Single-occurrence versus future-series changes are explicit and preserve history                |
+| RF13 | Email/Google failure has visible, recoverable state separate from booking state                 |
+| RF14 | Portfolio/demo never exposes live personal data or secrets                                      |
+| RF15 | Only authorized master manages lifecycle; suspension/removal revoke access and hide pages       |
+| RF16 | Individual public URL displays only its professional's approved header                          |
+
+## ADR 002 — customer access without passwords (pending)
+
+Use a high-entropy token with hash, purpose, expiry, tenant/booking scope and atomic
+consumption. Proposed lifetime: 15 minutes, single use, subject to usability tests.
+Request responses are generic and rate-limited by origin and destination. A GET
+shows a neutral page; explicit protected action consumes the link, avoiding email
+scanner consumption. Create a restricted session and redirect to a token-free URL.
+No third-party analytics/assets on token pages; restrict referrers and redact logs.
+
+Shared email addresses do not justify silently joining histories. If ambiguous,
+issue access to one booking and resolve identity with the professional. An
+unverified contact on a new request must never attach an existing patient history.
+Loss of email access requires an agreed identity-check/support procedure, audited
+contact changes and revocation of earlier access. Public knowledge of a name,
+phone or address is not enough to change ownership.
+
+## ADR 003 — clients and contacts (target model)
+
+Use permanent internal client IDs, separate from email/phone contacts and their
+verification status. Normalize phones with country/area codes; do not strip email
+dots or arbitrary suffixes. Do not impose globally unique patient contacts: minors,
+guardians and shared addresses require explicit resolution. Conflicting matches
+never cause automatic merge. Current booking-level name/email fields do not yet
+implement this client/contact model or phone collection.
+
+## ADR 004 — Calendar and source of truth (pending)
+
+Slotiva is authoritative for reservations and business rules. Google provides
+calendar presentation and external busy-time data, not a cross-system atomic
+transaction. Identity-only sign-in does not grant Calendar permission. A separate
+server OAuth consent requests only necessary scopes for the chosen calendar.
+Encrypt stored refresh credentials with a separately managed key; do not store
+provider credentials in the browser. Handle revocation, reconnection and expiry.
+Disconnecting must explain the disposition of existing events and erase credentials.
+
+Commit confirmation plus durable sync intent in the same internal transaction.
+Send with stable idempotency, bounded retries, failure handling and reconciliation.
+Consult external occupancy before confirmation; detect simultaneous external edits
+and ask the professional to resolve them, without silently moving/cancelling a
+patient. If reliable external availability is unavailable, pause dependent
+confirmations or require explicit reviewed intervention. Pilot edits should occur
+in Slotiva; detect external changes to linked events rather than overwriting them.
+
+Only after successful Calendar event creation add the customer attendee/send
+updates. Acceptance, auto-display and notification behavior depend on the provider
+and user settings. Preserve event identifiers across updates/cancellation. An ICS
+export, if added, must explain limited update propagation and must not masquerade
+as a second booking. Use neutral titles, no diagnosis/session reason or other
+patients' identities. Proposed implementation: individual linked events per
+occurrence; native Calendar recurrence is an alternative, not a delivered choice.
+
+## ADR 005 — persistence and concurrency
+
+Workers + D1 host this implementation. SQL-trigger interval ownership enforces
+internal occupancy atomically; per-professional serialized coordination remains
+an option if future external-sync requirements justify it. Do not replace a proven
+constraint with a read-then-write availability check. Half-open appointment windows
+plus the configured buffer determine occupied intervals. Rescheduling must keep
+the original interval if the replacement fails. Today the fixed service catalog
+is constrained in SQL; variable durations require a coordinated schema change.
+
+Target entities beyond implemented profiles/sessions/bookings/hours/series/outbox:
+clients, verified contacts, tenant service catalog, date-specific blocks, Calendar
+connections, event links, restricted access tokens and actor-rich audit events.
+Every business reference must preserve professional ownership. Avoid destructive
+cascades that erase history without a defined policy. Completed/no-show and sync
+pending/synced/failed/disconnected are target states; current booking states are
+pending_approval/confirmed/rejected/expired/cancelled only.
+
+## ADR 006 and 007 — approval, notice and rescheduling
+
+Public booking is a request, not confirmation. Server clock must enforce
+start_at >= creation + 48h and approval deadline = creation + 24h. These are elapsed,
+not business hours. At the exact deadline, expiration wins. Atomic decisions,
+versions, scheduled/request-time cleanup, interval release and outbox intent
+protect races. A Monday 10:00 request can start no earlier than Wednesday 10:00;
+approval must occur before Tuesday 10:00. Test both sides of each boundary.
+
+Pending customer edits retain the original deadline and recheck notice. The target
+confirmed-reschedule flow keeps the original booking valid until the professional
+approves a separate change proposal; rejection/expiry keeps the original. That
+proposal flow is pending; the current API blocks confirmed customer moves.
+Public recurring requests are not supported. Explicit professional agreement is
+the separately authorized creation path described in [ADR 009](TENANCY_AND_RECURRENCE.md).
+
+## Privacy, operation and pilot gate
+
+Slotiva schedules appointments; it is not a clinical record. Even appointment
+metadata is sensitive in this context. Collect no diagnosis, session notes or
+clinical reason; keep contacts/tokens/private events out of URLs, logs and portfolio.
+Before real customers, agree privacy notice, responsibilities, purposes, retention,
+export/erasure, incident handling and support. Terminal professional removal is
+not personal-data erasure. Define guardian/minor handling with the professional.
+
+Separate demo/test/production credentials and data. Add public reservation/link
+abuse controls. Monitor conflicts, failed auth, sync backlog, rejected mail and
+revoked integrations without logging private payloads. Failed jobs need bounded
+attempts and human recovery. Test protected backups by restoring an isolated
+copy; proposed RPO 24h/RTO 4h are targets requiring evidence and practitioner agreement.
+After restore, reconcile external events before reopening. On suspected compromise,
+revoke affected access and preserve evidence without exposing private content.
+
+The pilot requires completed identity and tenant tests, real email/link acceptance,
+real Calendar consent/busy-time/invite/revocation/reconciliation checks, recurrence
+and exception checks, agreed services/cancellation policy, tested restore,
+operational ownership and manual keyboard/mobile/screen-reader validation. Record
+professional approval with fictional data before inviting real clients. Follow
+[human validation](HUMAN_VALIDATION.md); there is no claim that this gate has passed.
+
+## Remaining discovery and cost assumptions
+
+The psychologist's professional-entered weekly/fortnightly workflow is now known.
+Still decide her duration/break, preferred finite horizon, cancellation rules,
+minors/guardian contacts, connected calendars, who funds/operates support and the
+email sender/domain. Per-tenant service editing, date exceptions and series edits
+are separate work. Payments and WhatsApp remain outside the initial increment.
+
+The earlier R$0–40/month discussion is an unverified hosting hypothesis, not a
+quote or operating guarantee. Verify actual provider quotas/prices, usage, domain,
+transactional email, storage, support, taxes and exchange rates before budgeting.
+Google login alone does not imply a paid authentication subscription; Calendar
+and Cloudflare still have limits and operational costs to validate. No fixed
+current price is asserted here.
+
+Maintain one codebase and use authorized aggregate evidence for a portfolio case
+study: problem, decisions, architecture, tests and actual outcomes. Do not claim
+live adoption before it occurs. Do not publish identifiable patients/screenshots.
+
+## History and primary references
+
+v1.0 established product/portfolio, identity/recovery, Calendar and pilot goals;
+v1.1 added explicit professional approval/invite ordering; v1.2 fixed public
+48h/24h limits; v1.3 adds master/tenant pages and professional-led finite recurrence.
+[ADR 008](GOOGLE_AUTH.md) selects server OIDC; [ADR 009](TENANCY_AND_RECURRENCE.md)
+records implementation limits. Earlier requirements and delivery notes remain
+available in Git history, not silently claimed as deployed.
+
+[Google identity](https://developers.google.com/identity/gsi/web/guides/overview),
+[server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server),
+[Calendar event creation](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert),
+[Calendar quotas](https://developers.google.com/workspace/calendar/api/guides/quota),
+[Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/).

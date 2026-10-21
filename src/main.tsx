@@ -1,10 +1,12 @@
+import MasterPage from "./pages/MasterPage";
+import HomePage from "./pages/HomePage";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider, Link } from "react-router-dom";
 import "./index.css";
 import App from "./App";
-import BookingPage from "./pages/BookingPage";
+import PublicBookingPage from "./pages/PublicBookingPage";
 import AdminPage from "./pages/AdminPage";
 const client = new QueryClient({
   defaultOptions: {
@@ -16,7 +18,9 @@ const router = createBrowserRouter([
   {
     element: <App />,
     children: [
-      { path: "/", element: <BookingPage /> },
+      { path: "/", element: <HomePage /> },
+      { path: "/p/:slug", element: <PublicBookingPage /> },
+      { path: "/master", element: <MasterPage /> },
       { path: "/admin", element: <AdminPage /> },
       {
         path: "*",

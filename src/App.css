@@ -613,3 +613,33 @@ h2:focus {
   flex-shrink: 0;
   white-space: nowrap;
 }
+
+.tenant-navy {
+  --accent: #1d426a;
+  color: #1d426a;
+}
+.tenant-plum {
+  --accent: #60335c;
+  color: #60335c;
+}
+.hours input:not([type="checkbox"]),
+.hours select {
+  max-width: 100%;
+  width: 100%;
+}
+.hours label {
+  display: block;
+  margin-bottom: 0.7rem;
+}
+.appointment > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tenant-navy h1 {
+  color: #1d426a;
+}
+.tenant-plum h1 {
+  color: #60335c;
+}

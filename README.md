@@ -1,14 +1,44 @@
 # Slotiva
 
-**Accessible appointment booking, hosted entirely on Cloudflare.**
+**Available time slots that become appointments.** React/TypeScript, a Cloudflare
+Worker and D1 serve the frontend and API from the same origin. The application
+is in Portuguese; maintained documentation is in English. The browser title is
+“Slotiva — horários livres que viram encontros.”
 
-React + TypeScript frontend, a TypeScript Worker API, and Cloudflare D1. One deployment serves the application and `/api` on the same origin, including authenticated administration.
+## Current increment: 0.5.0
 
-Production target: https://slotiva.matheus-sergio.workers.dev
+- `/master`: Google-authenticated platform administration creates professionals,
+  edits their headers, suspends/reactivates and removes accounts. It does not
+  grant access to professionals' appointment APIs.
+- `/p/{slug}`: each professional's own public booking URL, display name, header
+  title, subtitle and forest/navy/plum theme. URLs are stable and never reused.
+- `/admin`: a professional sees only their own appointments, hours and profile.
+  Google authentication is separate from authorization; public signup is closed.
+- Public requests start pending, at least 48 elapsed hours ahead and within the
+  next 14 calendar days. The professional has 24 elapsed hours to approve.
+  Rejection/expiry/cancellation releases held intervals. Confirmed customer
+  rescheduling remains blocked until a change-proposal flow is implemented.
+- After agreeing with a client, the professional can directly confirm a single
+  appointment or a weekly/fortnightly fixed-time series. There are 1–26 explicit
+  occurrences within 366 days, no automatic renewal. Any conflict rejects the
+  whole series; retries cannot duplicate it. Cancel one occurrence or all future
+  occurrences of a series; previous appointments remain in history.
+- Occupancy keys include professional, date and minute. Two professionals can
+  use the same time; concurrent overlaps for one professional cannot both win.
+- Suspension revokes sessions and hides the public page. Deletion additionally
+  cancels active appointments and frees slots; it preserves audit/history and is
+  not a personal-data erasure procedure.
+
+**Email and Google Calendar are not integrated yet.** Notification outbox rows
+are durable intents, not sent messages. Calendar busy-time checks, event creation,
+invites and recovery links remain pending. The current three services (30/45/60
+minutes), 15-minute buffer and São Paulo timezone are fixed; per-professional
+service configuration, clinical notes, payments and other timezones are not delivered.
+No real-customer rollout is claimed.
 
 ## Run locally
 
-Requires Node.js 22.12+ or 24+ and npm. No Python, PostgreSQL, Docker or paid account is required for local development.
+Use Node.js 22.12+ or 24+ and npm. From the repository root:
 
 ```bash
 npm ci
@@ -18,62 +48,54 @@ cp .dev.vars.example .dev.vars
 npm run admin:hash
 ```
 
-The last command prompts for a password of at least 12 characters. Put its generated value in `ADMIN_PASSWORD_HASH` in `.dev.vars`. This file is ignored by Git. The terminal prompt is visible; run it privately. Do not paste your password into chat.
+Put the generated hash in ADMIN_PASSWORD_HASH in the ignored `.dev.vars` file;
+keep AUTH_MODE=demo and COOKIE_SECURE=false for local HTTP only. Run
+`npm run dev:api` and, in another terminal, `npm run dev`. Open
+http://localhost:5173; Vite forwards API traffic to Wrangler at port 8787.
+The local demo uses a fictional professional and password access at `/admin`.
+The built app also runs at http://localhost:8787. Never paste passwords or
+client secrets into chat or Git. Google testing needs a separate OAuth client,
+canonical callback host and master authorization: [setup](docs/HUMAN_VALIDATION.md).
 
-In two terminals:
+## Authentication and data boundaries
 
-```bash
-npm run dev:api
-npm run dev
-```
+Hosted product environments use AUTH_MODE=google: password login and legacy
+password sessions are rejected. Unknown modes also disable passwords. Google
+uses server-side authorization code, PKCE, one-use state/browser binding, nonce,
+verified signature/issuer/audience/expiry and a rotating eight-hour own session.
+MASTER_GOOGLE_SUBS bootstraps master subjects. The master invites professionals;
+verified authoritative Gmail/Workspace addresses can bind once to an immutable
+Google subject. Other Google-account addresses require explicit subject provisioning.
+A valid Google account alone grants no access. Roles and active status are checked
+on every protected request. [Protocol and decision](docs/GOOGLE_AUTH.md).
 
-Open http://localhost:5173. The admin area is `/admin`. Vite forwards `/api` to Wrangler on port 8787. For the complete built application without Vite, use http://localhost:8787 with Wrangler running. `COOKIE_SECURE=false` in `.dev.vars` is only for local HTTP.
+Sessions are random, hashed in D1, HttpOnly, SameSite=Lax, Secure when hosted and
+scoped to `/api`. Mutations require an exact Origin. Demo PBKDF2 uses 100,000
+iterations and five attempts per IP per 15 minutes. Rotating a demo password hash
+does not revoke existing demo sessions. Public API responses are no-store.
+A customer's random capability token is kept only in React memory; reload loses
+self-service access. Contact information is not proof of identity. There is no
+customer directory or recovered email login yet. Use fictional data until pilot
+acceptance. Do not store diagnoses or session content.
 
-## Cloudflare deployment
+## Deployment boundary
 
-`wrangler.jsonc` defines the `slotiva` Worker, static `dist` assets, the D1 binding named **DB**, and its migration directory. The production database is `slotiva-db`. Database UUIDs are identifiers, not credentials.
+`wrangler.jsonc` retains the existing production target and demo mode; it has NOT
+been deployed by this increment. `main` is connected to Cloudflare Builds, so a
+merge may trigger a release and must follow a coordinated migration window.
+Migration 0002 changes booking transitions; 0003 adds identity; 0004 partitions
+professionals; 0005 adds finite agreed series. Existing bookings become confirmed
+or cancelled and belong to demo; no retroactive invitations are generated.
+Never run an older Worker against the new write contract.
 
-Initial deployment for another account:
-
-```bash
-npx wrangler login
-npx wrangler d1 create slotiva-db
-# Replace database_id in wrangler.jsonc with the UUID from the previous command.
-npm run db:remote
-npx wrangler secret put ADMIN_PASSWORD_HASH
-npm run deploy
-```
-
-When prompted for the secret, paste the hash generated by `npm run admin:hash`, not the password. Production cookies are Secure, HttpOnly, SameSite=Lax and limited to `/api/admin`.
-
-For Workers Builds connected to GitHub, use repository root `/`, deploy command `npx wrangler deploy`, and production branch `main`. The Wrangler custom build runs `npm run build` automatically. The D1 database and initial schema must exist before the Worker serves bookings. Later SQL migrations are explicit (`npm run db:remote`); they are not run on every HTTP request or every preview deployment.
-
-Preview deployments must use an isolated preview database before allowing writes; do not enable preview URLs against the production D1 binding.
-
-## Booking rules and atomicity
-
-- One fictional professional, with 30/45/60-minute services.
-- Tomorrow through 14 days ahead in America/Sao_Paulo.
-- Editable weekly hours; default weekdays 09:00–17:00.
-- Start times every 30 minutes; duration plus 15-minute buffer must fit inside opening hours.
-- Each occupied 15-minute interval has a unique `(date, minute)` key in `occupied_slots`.
-- SQL triggers insert/delete occupancy as part of the same INSERT/UPDATE that creates, reschedules or cancels a booking. Two concurrent requests cannot both claim the same interval. Direct SQL writes receive the same protection.
-- A failed reschedule rolls back all its changes, preserving the original booking and slots.
-- Schedule edits use a single transactional D1 batch, with a database trigger preventing changes that invalidate future reservations. Booking validation also checks the current schedule inside database triggers, avoiding a read/write race.
-- HTTP 409 reports a conflicting interval; HTTP 422 reports invalid data or hours.
-
-The current three services occupy at most five 15-minute intervals. Extending service durations requires updating the corresponding SQL constraints and trigger generation.
-
-## Authentication and boundaries
-
-- Salted PBKDF2-SHA256 hashes use the Workers Web Crypto implementation (100,000 iterations); no production password is in the repository.
-- Login attempts are limited to five per client IP per 15-minute window in D1.
-- Random 256-bit session tokens expire after eight hours; only SHA-256 hashes are stored in D1. Logout revokes the token.
-- Administrative writes and login require an exact same-origin Origin header. The app needs no cross-origin cookie exception.
-- Customer cancellation and rescheduling require a separate random token returned only at booking creation. The browser keeps it only in React memory; reloading/leaving loses customer self-service access. The professional can still cancel after login.
-- API responses use `Cache-Control: no-store`. No localStorage customer records, public customer listing or email delivery.
-- Use fictional data in the portfolio demo. Public abuse protection, manual accessibility review, retention/backups policy and customer recovery/notifications are pending before real customer use.
-- If `ADMIN_PASSWORD_HASH` is missing, administration stays closed with HTTP 503; public bookings can still work.
+This branch deliberately configures **no Preview D1 binding**. Its old shared
+Preview migration configuration is disabled as well. The old Preview database
+must stay untouched while an incompatible Preview can write to it. A new isolated
+homologation database must be bound to both the Preview and migration config
+before testing. Do not restore the old UUID, inherit production storage, or use
+`npm run db:remote` for Preview. Follow [the concrete human setup and validation
+runbook](docs/HUMAN_VALIDATION.md). A successful upload without a configured D1
+is not a working booking deployment.
 
 ## Verification
 
@@ -84,45 +106,42 @@ npm test
 npm run test:worker
 npm run build
 npx wrangler deploy --dry-run
+node --test scripts/check-docs.test.mjs
+node scripts/check-docs.mjs <full-base-commit-sha>
 ```
 
-Worker integration tests run the real API bundle in Miniflare/workerd with isolated local D1. They cover simultaneous API reservations, simultaneous direct SQL inserts, trigger rollback, buffer overlap, cancellation tokens, rescheduling conflicts, sessions, exact Origin checks, logout, schedule protection and login throttling. They do not require a Cloudflare account or production database.
+Worker tests use the real bundled API in Miniflare/workerd and isolated local D1.
+They cover occupancy races, rollback, approval deadlines/versions, legacy upgrades,
+OAuth signature/state/nonce/PKCE, revocation, master authorization, tenant isolation,
+profile edits, deletion and atomic/retry-safe recurrence. Google exchange tests
+use signed synthetic identities, not real consent or production credentials.
 
-For browser tests in an isolated checkout (the setup refuses to overwrite `.dev.vars`):
+For browser tests, in an isolated checkout with no `.dev.vars`:
 
 ```bash
 node scripts/test-env.mjs
 npm run db:local
 npm run dev:api -- --var COOKIE_SECURE:false
-# In a second terminal:
+# Another terminal:
 npm run test:e2e
 ```
 
-Playwright starts Vite. Tests exercise reservation → rescheduling → admin login → reload → cancellation → logout; mobile overflow, keyboard entry and automated WCAG AA checks run for desktop and mobile. These checks are not a full manual accessibility audit. CI runs all of the above against disposable local storage.
+Playwright covers request/edit/approval/cancellation, a professional's fortnightly
+series, a master CRUD screen with API fixtures, and Google setup without password
+fallback. Initial booking-screen axe scans at two viewport sizes and a mobile
+keyboard/overflow check do not replace a full manual accessibility audit.
+CI runs disposable local storage. Passing CI does not prove a remote migration,
+real OAuth setup, notification delivery or production readiness.
 
-## Architecture
+## Documentation and governance
 
-| Directory | Responsibility |
-|---|---|
-| `src/pages` | React booking and administration screens |
-| `src/api.ts` | Typed API client and calendar presentation |
-| `worker/index.ts` | HTTP routing and error mapping |
-| `worker/booking.ts` | Input schemas, calendar and service rules |
-| `worker/security.ts` | Passwords, sessions, same-origin checks and throttling |
-| `migrations` | D1 tables, constraints, occupancy and schedule triggers |
-| `worker-tests` / `e2e` | Worker/D1 integration and browser tests |
+[Documentation index](docs/README.md) · [API](docs/API.md) ·
+[Product requirements](docs/SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md) ·
+[Documentation control](docs/DOCUMENTATION.md) · [Changelog](CHANGELOG.md).
 
-The initial FastAPI/PostgreSQL implementation remains in Git history through commit `c44ee77`. It was replaced to meet the requirement that the entire product run on Cloudflare. React's API contract and screens were preserved; the PostgreSQL exclusion constraint became unique interval ownership enforced by D1 triggers.
-
-Pending product work: English locale, holidays/date exceptions, pagination/archiving for the admin agenda and production observability. Payments and multiple professionals remain outside this MVP.
-
-## Product roadmap and governance
-
-Slotiva is evolving from a portfolio demonstration into a functional scheduling product for real customers. Google professional sign-in, Google Calendar integration, customer access through temporary email links, and recurring appointments are planned work, not current capabilities.
-
-- [Product and engineering documentation](docs/SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md)
-- [Documentation index and current-state notes](docs/README.md)
-- [Golden Rule and contributor instructions](AGENTS.md)
-- [Change history](CHANGELOG.md)
-
-**Every change must be implemented and documented on GitHub. Version control is as important as implementation.** Local-only work is not a completed delivery. Never commit customer data or secrets. Real-customer rollout requires the documented pilot acceptance checks.
+Every change must be implemented and documented on GitHub, in a reviewable PR.
+Documentation CI enforces affected-file updates and local links; human review
+checks semantics and English. Repository branch rules must separately enforce
+mandatory checks and reviews. Local-only work is not a completed delivery.
+The initial FastAPI/PostgreSQL implementation remains in Git history through
+c44ee77; [ADR 001](docs/ADR-001-cloudflare.md) records its replacement.

@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "slotiva",
-  "preview_urls": false,
+  "preview_urls": true,
   "main": "worker/index.ts",
   "build": { "command": "npm run build" },
   "compatibility_date": "2026-10-19",
@@ -19,5 +19,12 @@
       "migrations_dir": "migrations",
     },
   ],
-  "vars": { "COOKIE_SECURE": "true" },
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "demo" },
+  // No D1 inheritance: configure a dedicated product-homologation database
+  // before enabling writes. The older Preview database must remain untouched.
+  "previews": {
+    "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "google" },
+    "d1_databases": []
+  }
 }

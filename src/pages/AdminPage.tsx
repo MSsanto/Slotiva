@@ -1,3 +1,6 @@
+import AgreedBookings from "./AgreedBookings";
+import { Navigate } from "react-router-dom";
+import ProfessionalSettings from "./ProfessionalSettings";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -5,6 +8,8 @@ import {
   ApiError,
   errorMessage,
   formatDate,
+  formatDeadline,
+  statusLabel,
   type Booking,
   type Hours,
   type Service,
@@ -15,7 +20,13 @@ export default function AdminPage() {
   const [notice, setNotice] = useState("");
   const session = useQuery({
     queryKey: ["session"],
-    queryFn: () => api("/admin/session"),
+    queryFn: () => api<{ role: "master" | "professional" }>("/admin/session"),
+    retry: false,
+  });
+  const authOptions = useQuery({
+    queryKey: ["auth-options"],
+    queryFn: () =>
+      api<{ googleEnabled: boolean; passwordEnabled: boolean }>("/auth/config"),
     retry: false,
   });
   const login = useMutation({
@@ -40,6 +51,7 @@ export default function AdminPage() {
     queryKey: ["admin", "bookings"],
     queryFn: () => api<Booking[]>("/admin/bookings"),
     enabled: session.isSuccess,
+    refetchInterval: 15000,
   });
   const hours = useQuery({
     queryKey: ["admin", "hours"],
@@ -47,8 +59,19 @@ export default function AdminPage() {
     enabled: session.isSuccess,
   });
   const services = useQuery({
-    queryKey: ["services"],
-    queryFn: () => api<Service[]>("/services"),
+    queryKey: ["admin", "services"],
+    queryFn: () => api<Service[]>("/admin/services"),
+  });
+  const cancelSeries = useMutation({
+    mutationFn: (id: string) =>
+      api(`/admin/series/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setNotice(
+        "Próximos encontros da série cancelados. Encontros anteriores foram preservados.",
+      );
+      void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
+      void client.invalidateQueries({ queryKey: ["availability"] });
+    },
   });
   const cancel = useMutation({
     mutationFn: (id: string) =>
@@ -57,6 +80,31 @@ export default function AdminPage() {
       setNotice("Reserva cancelada.");
       void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
       void client.invalidateQueries({ queryKey: ["availability"] });
+    },
+  });
+  const decision = useMutation({
+    mutationFn: ({
+      booking,
+      action,
+    }: {
+      booking: Booking;
+      action: "approve" | "reject";
+    }) =>
+      api<Booking>(`/admin/bookings/${booking.id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({ version: booking.version }),
+      }),
+    onSuccess: (_, { action }) => {
+      setNotice(
+        action === "approve"
+          ? "Agendamento confirmado. Envio de e-mail e Google Agenda ainda não estão disponíveis."
+          : "Solicitação recusada; horário liberado.",
+      );
+      void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
+      void client.invalidateQueries({ queryKey: ["availability"] });
+    },
+    onError: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
     },
   });
   const updateHours = useMutation({
@@ -77,27 +125,56 @@ export default function AdminPage() {
           session.error instanceof ApiError && session.error.status === 401
         ) && <p role="alert">{errorMessage(session.error)}</p>}
         <p>A agenda e os dados dos clientes exigem autenticação.</p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            login.mutate();
-          }}
-        >
-          <label>
-            Senha administrativa
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              maxLength={200}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <button className="primary" disabled={login.isPending}>
-            {login.isPending ? "Entrando…" : "Entrar"}
-          </button>
-        </form>
+        {new URLSearchParams(window.location.search).get("google") ===
+          "failed" && (
+          <p role="alert">
+            Não foi possível entrar com Google. Reinicie o acesso ou procure o
+            responsável.
+          </p>
+        )}
+        {authOptions.isPending && (
+          <p role="status">Verificando opções de acesso…</p>
+        )}
+        {authOptions.isError && (
+          <p role="alert">Não foi possível consultar as opções de acesso.</p>
+        )}
+        {authOptions.data?.googleEnabled && (
+          <form action="/api/admin/google/start" method="post">
+            <button className="primary" type="submit">
+              Entrar com Google
+            </button>
+          </form>
+        )}
+        {authOptions.data &&
+          !authOptions.data.googleEnabled &&
+          !authOptions.data.passwordEnabled && (
+            <p role="alert">
+              Acesso profissional aguardando configuração do responsável.
+            </p>
+          )}
+        {authOptions.data?.passwordEnabled && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              login.mutate();
+            }}
+          >
+            <label>
+              Senha administrativa
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                maxLength={200}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+            <button className="primary" disabled={login.isPending}>
+              {login.isPending ? "Entrando…" : "Entrar"}
+            </button>
+          </form>
+        )}
         {login.isError && (
           <p className="error" role="alert">
             {errorMessage(login.error)}
@@ -105,10 +182,13 @@ export default function AdminPage() {
         )}
       </section>
     );
+  if (session.data?.role === "master") return <Navigate to="/master" replace />;
   const error =
     bookings.error ||
     hours.error ||
     cancel.error ||
+    cancelSeries.error ||
+    decision.error ||
     updateHours.error ||
     logout.error;
   return (
@@ -153,17 +233,72 @@ export default function AdminPage() {
                 {b.name}
               </p>
               <small>{b.email}</small>
+              <p>
+                {statusLabel(b.status)}
+                {b.seriesId ? " · Horário combinado" : ""}
+              </p>
+              {b.status === "pending_approval" && b.approvalExpiresAt && (
+                <small>
+                  Aprovar antes de {formatDeadline(b.approvalExpiresAt)}{" "}
+                  (Brasília)
+                </small>
+              )}
             </div>
-            <button
-              className="text-button"
-              disabled={cancel.isPending}
-              onClick={() => cancel.mutate(b.id)}
-            >
-              Cancelar reserva
-            </button>
+            <div>
+              {b.status === "pending_approval" && (
+                <>
+                  <button
+                    className="primary"
+                    disabled={decision.isPending || cancel.isPending}
+                    onClick={() =>
+                      decision.mutate({ booking: b, action: "approve" })
+                    }
+                  >
+                    Aprovar
+                  </button>
+                  <button
+                    className="text-button"
+                    disabled={decision.isPending || cancel.isPending}
+                    onClick={() =>
+                      decision.mutate({ booking: b, action: "reject" })
+                    }
+                  >
+                    Recusar
+                  </button>
+                </>
+              )}
+              {(b.status === "confirmed" ||
+                b.status === "pending_approval") && (
+                <button
+                  className="text-button"
+                  disabled={cancel.isPending || decision.isPending}
+                  onClick={() => cancel.mutate(b.id)}
+                >
+                  Cancelar reserva
+                </button>
+              )}
+              {b.seriesId && b.status === "confirmed" && (
+                <button
+                  className="text-button"
+                  disabled={cancelSeries.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Cancelar todos os próximos encontros desta série? Encontros anteriores serão preservados.",
+                      )
+                    )
+                      cancelSeries.mutate(b.seriesId!);
+                  }}
+                >
+                  Cancelar próximos da série
+                </button>
+              )}
+            </div>
           </article>
         ))
       )}
+      <AgreedBookings />
+      <ProfessionalSettings />
       {hours.data && (
         <form
           key={JSON.stringify(hours.data)}

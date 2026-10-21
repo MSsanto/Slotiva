@@ -1,3 +1,10 @@
-# Local HTTP only. Generate a hash using npm run admin:hash.
+# Local HTTP demo only. Generate a hash using npm run admin:hash.
 COOKIE_SECURE=false
+AUTH_MODE=demo
 ADMIN_PASSWORD_HASH=
+# Optional Google authentication; use a separate test OAuth client.
+# Product/homologation deployments must use AUTH_MODE=google and HTTPS.
+# PUBLIC_ORIGIN=http://localhost:8787
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# MASTER_GOOGLE_SUBS=

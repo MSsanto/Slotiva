@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HttpError, type BookingRow } from "./types";
+import { HttpError, now, type BookingRow } from "./types";
 export const services = [
   {
     id: "discovery",
@@ -75,19 +75,27 @@ export const hoursSchema = z
       toMinutes(v.opens) % 30 === 0 &&
       toMinutes(v.closes) % 30 === 0,
   );
-export function window(date: string, time: string, serviceId: string) {
+export function window(
+  date: string,
+  time: string,
+  serviceId: string,
+  professional = false,
+) {
   const service = services.find((s) => s.id === serviceId);
   const last = new Date(`${today()}T12:00:00Z`);
-  last.setUTCDate(last.getUTCDate() + 14);
+  last.setUTCDate(last.getUTCDate() + (professional ? 366 : 14));
   if (
+    (professional && Date.parse(`${date}T${time}:00-03:00`) / 1000 <= now()) ||
     !service ||
-    date <= today() ||
+    (professional ? date < today() : date <= today()) ||
     date > last.toISOString().slice(0, 10) ||
     toMinutes(time) % 30 !== 0
   )
     throw new HttpError(
       422,
-      "Escolha uma data nos próximos 14 dias e um horário válido.",
+      professional
+        ? "Escolha um horário futuro nos próximos 366 dias, em intervalos de 30 minutos."
+        : "Escolha uma data nos próximos 14 dias e um horário válido.",
     );
   const start = toMinutes(time),
     end = start + service.duration;
@@ -96,13 +104,25 @@ export function window(date: string, time: string, serviceId: string) {
   const startsAt = Date.parse(`${date}T${time}:00-03:00`) / 1000;
   return { start, end, until: end + 15, weekday, startsAt };
 }
+export function requireNotice(startsAt: number, at = now()) {
+  if (startsAt < at + 48 * 3600)
+    throw new HttpError(
+      422,
+      "Solicite com pelo menos 48 horas de antecedência.",
+    );
+}
 export function output(row: BookingRow) {
   return {
     id: row.id,
+    source: row.source,
+    seriesId: row.series_id,
     serviceId: row.service_id,
     date: row.date,
     time: clock(row.start_min),
     name: row.name,
     email: row.email,
+    status: row.status,
+    approvalExpiresAt: row.approval_expires_at,
+    version: row.version,
   };
 }
