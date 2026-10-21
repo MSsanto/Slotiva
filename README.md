@@ -13,6 +13,7 @@ is in Portuguese; maintained documentation is in English. The browser title is
 - `/p/{slug}`: each professional's own public booking URL, display name, header
   title, subtitle and forest/navy/plum theme. URLs are stable and never reused.
 - `/admin`: a professional sees only their own appointments, hours and profile.
+  Administrative fields use consistent readable inputs and visible select focus.
   Google authentication is separate from authorization; public signup is closed.
 - Public requests start pending, at least 48 elapsed hours ahead and within the
   next 14 calendar days. The professional has 24 elapsed hours to approve.

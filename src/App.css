@@ -626,6 +626,12 @@ h2:focus {
 .hours select {
   max-width: 100%;
   width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  border: 1px solid #b3c1a9;
+  background: #fdfefb;
+  color: #223c36;
+  font-size: 16px;
 }
 .hours label {
   display: block;

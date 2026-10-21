@@ -32,6 +32,8 @@ meaning of earlier Portuguese entries, whose original wording remains in Git.
 - Updates maintained docs to English, including current API, product requirements,
   visual identity, ADRs, governance and operational handoff. Preserves approved
   logo variant decisions from main; final logo exports/application remain pending.
+- Reviewed the captured administrative form and aligned input/select spacing,
+  font size and keyboard focus with the existing interface.
 - Browser CI found an overly exact native-select label selector in the new
   recurrence fixture; relaxed it to match the visible frequency label. The other
   four browser journeys passed on that run; the complete suite is rerun after

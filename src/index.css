@@ -13,16 +13,19 @@ body {
   margin: 0;
 }
 button,
+select,
 input {
   font: inherit;
 }
 button,
 a,
+select,
 input {
   outline-offset: 4px;
 }
 button:focus-visible,
 a:focus-visible,
+select:focus-visible,
 input:focus-visible {
   outline: 3px solid #287662;
 }
@@ -30,6 +33,7 @@ button {
   cursor: pointer;
 }
 button,
+select,
 input {
   border-radius: 9px;
 }
