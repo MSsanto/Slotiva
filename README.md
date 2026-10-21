@@ -89,14 +89,25 @@ professionals; 0005 adds finite agreed series. Existing bookings become confirme
 or cancelled and belong to demo; no retroactive invitations are generated.
 Never run an older Worker against the new write contract.
 
-This branch deliberately configures **no Preview D1 binding**. Its old shared
-Preview migration configuration is disabled as well. The old Preview database
-must stay untouched while an incompatible Preview can write to it. A new isolated
-homologation database must be bound to both the Preview and migration config
-before testing. Do not restore the old UUID, inherit production storage, or use
-`npm run db:remote` for Preview. Follow [the concrete human setup and validation
-runbook](docs/HUMAN_VALIDATION.md). A successful upload without a configured D1
-is not a working booking deployment.
+Preview binding DB and the separate migration binding PREVIEW_DB now both target
+`slotiva-product-homologation` (`74b37b6b-7f9e-40a3-b685-546d7a0a76ac`), created
+by the owner on 2026-10-21. It differs from production and the older shared
+Preview database. Local development has no remote=true override. Apply the new
+schema only through the dedicated config:
+
+```powershell
+npx wrangler d1 migrations apply PREVIEW_DB --remote --config ./wrangler.preview-migrations.jsonc
+npx wrangler preview
+```
+
+Database creation is evidenced by the owner's Wrangler output; remote migrations,
+Preview health and Google setup still require separate confirmation. The old
+Preview must stay untouched while an incompatible Worker writes. Do not use
+npm run db:remote for homologation. If the D1 creation wizard modified your local
+wrangler.jsonc, back it up outside the repository and restore only that file's
+wizard changes before pulling the reviewed configuration. Keep binding names DB
+and PREVIEW_DB; do not add slotiva_product_homologation or remote=true as a local
+development substitute. Follow [human setup and validation](docs/HUMAN_VALIDATION.md).
 
 ## Verification
 

@@ -4,6 +4,19 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-21 — dedicated product-homologation D1 configuration
+
+- Owner created slotiva-product-homologation, ID
+  74b37b6b-7f9e-40a3-b685-546d7a0a76ac. Preview DB and migration PREVIEW_DB now
+  target that same isolated resource. Production and the older shared Preview
+  remain separate; no remote=true development override is committed.
+- Documented backing up/restoring the creation wizard's local wrangler.jsonc
+  changes before pulling the reviewed config. Updated migration/rollout evidence
+  to distinguish successful database creation from unapplied schema and OAuth.
+- Validation: binding/ID/isolation assertions, documentation links/change matrix
+  and Wrangler dry-run; results are recorded with the PR checks. No remote
+  migration, production deploy or claim of completed Google setup in this change.
+
 ## 0.5.0 — identity, master administration and professional agreements (2026-10-21)
 
 - Consolidates the approval and strict-documentation branches without deploying

@@ -21,10 +21,17 @@
   ],
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "demo" },
-  // No D1 inheritance: configure a dedicated product-homologation database
-  // before enabling writes. The older Preview database must remain untouched.
+  // Dedicated product-homologation D1; production and the older Preview stay separate.
+  // Apply migrations with the matching PREVIEW_DB config before testing this Preview.
   "previews": {
     "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "google" },
-    "d1_databases": []
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "slotiva-product-homologation",
+        "database_id": "74b37b6b-7f9e-40a3-b685-546d7a0a76ac",
+        "migrations_dir": "migrations"
+      }
+    ]
   }
 }

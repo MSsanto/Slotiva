@@ -95,8 +95,9 @@ substitute for coordinating migrations and release. PR #1 contains the separate
 Preview/documentation setup. Do not apply this migration to its shared Preview
 database while an older Preview still writes there. Use a dedicated approval
 Preview database, or retire incompatible Preview writers in an authorized window.
-The current branch intentionally leaves Preview and migration D1 bindings empty.
-Follow [human validation](HUMAN_VALIDATION.md) to configure a new isolated database. No remote migration or production release was performed for this review.
+The current Preview and migration configs target the dedicated product-homologation
+D1 created by the owner, rather than the older shared Preview. Follow
+[human validation](HUMAN_VALIDATION.md) to apply its schema and verify the deployment. No remote migration or production release was performed for this review.
 
 ## Verification and evidence
 

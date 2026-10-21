@@ -11,21 +11,29 @@ before coordinating the schema/code release.
 Check out the PR branch, pull it and run npm ci. Read migrations 0002–0005 and
 inspect `git status`. Never apply them to the older shared Preview database
 77552831-ed97-4662-830a-2c7b318add96 or production while an old Worker writes.
-Both this branch's Preview binding and old migration config are deliberately empty.
+The owner created the dedicated `slotiva-product-homologation` D1 on 2026-10-21,
+ID `74b37b6b-7f9e-40a3-b685-546d7a0a76ac`, through authenticated Wrangler.
+The reviewed Preview config binds it as DB; the migration-only config binds the
+same ID as PREVIEW_DB. Production remains on its original DB; no remote=true
+local-development override is introduced. Do not create another database merely
+to repeat this already completed step.
 
-After authenticating Wrangler to the intended test account, create a NEW D1:
+The creation wizard was allowed to edit the owner's local wrangler.jsonc using
+binding slotiva_product_homologation and remote local development. Back up that
+local file outside the checkout, then restore its wizard changes before pulling
+the reviewed branch. For example, after confirming this is the wizard-edited file:
 
 ```powershell
-npx wrangler login
-npx wrangler d1 create slotiva-product-homologation
+Copy-Item .\wrangler.jsonc "$env:TEMP\slotiva-wrangler-before-sync.jsonc"
+git restore --source=HEAD -- wrangler.jsonc
+git pull --ff-only
+Get-Content .\wrangler.preview-migrations.jsonc
 ```
 
-Review the returned ID. Put that new ID/name into both `wrangler.jsonc` under
-`previews.d1_databases` (binding DB, migrations_dir migrations) and
-`wrangler.preview-migrations.jsonc` under d1_databases (binding PREVIEW_DB,
-migrations_dir migrations). Check that neither equals the old Preview or
-production ID. Commit the reviewed configuration changes with a README/changelog
-update. Do not paste database credentials or auth tokens into Git.
+The backup preserves the wizard-generated settings for review. Inspect any other
+local changes instead of resetting the whole working tree. Before the command
+below, confirm the config displays the new ID, binding PREVIEW_DB and migrations_dir
+migrations. The ID must differ from both production and the older shared Preview.
 
 ```powershell
 npx wrangler d1 migrations apply PREVIEW_DB --remote --config ./wrangler.preview-migrations.jsonc
@@ -34,7 +42,7 @@ npx wrangler preview
 
 The first command mutates ONLY the newly reviewed homologation D1. Do not use
 npm run db:remote, which targets production. Confirm the displayed resource ID
-before accepting any migration prompt. An empty config should fail, not choose
+before accepting any migration prompt. A missing or incorrect binding should fail, not choose
 another database. Check `/api/health` after the Preview has its binding.
 
 ## 2. Configure Google and bootstrap a master

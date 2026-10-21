@@ -84,9 +84,10 @@ change also needs a meaningful changelog entry and an ADR when it changes owners
 identity or scheduling policy. The file matrix is a minimum, not a prose-quality test.
 
 The earlier Preview configuration follow-up above describes its historical setup;
-0.5.0 intentionally disables both Preview D1 and its old migration target. Current
-instructions are in HUMAN_VALIDATION.md; never restore the incompatible old shared
-UUID when following a historical command. Do not describe a successful static
+0.5.0 initially disabled both bindings until isolated resources were available.
+The owner has now created product-homologation D1; matching reviewed bindings are
+committed. Current instructions are in HUMAN_VALIDATION.md; never restore the
+incompatible old shared UUID when following a historical command. Do not describe a successful static
 upload as a working backend or a passing synthetic OAuth test as real consent.
 
 Added Worker tests exercise signed identities, one-use OAuth transactions,
@@ -108,3 +109,11 @@ professional removal cancelling confirmed series without erasing audit history.
 Browser fixture correction: frequency selection uses the visible native-select
 label without an exact full-label-text match, avoiding dependence on option text
 within a wrapped label. This changes the test selector, not booking behavior.
+
+## Dedicated homologation binding — 2026-10-21
+
+Check that Preview DB and migration PREVIEW_DB use the same new homologation ID,
+differ from production/old Preview, and have no remote local-development override.
+The owner's successful creation output establishes resource creation only, not
+schema migration, usable Google sign-in or healthy deployment. Configuration
+checks and dry-run are separate from these external acceptance results.
