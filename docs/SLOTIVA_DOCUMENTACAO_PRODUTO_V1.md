@@ -1,6 +1,6 @@
 # Slotiva — documentação de produto e engenharia
 
-Versão: 1.1 · Data: 21/10/2026 · Responsável: Matheus Sergio
+Versão: 1.2 · Data: 21/10/2026 · Responsável: Matheus Sergio
 
 “Horários livres que viram encontros.”
 
@@ -24,6 +24,8 @@ Convenções: **Definido** = requisito acordado; **Proposto** = decisão técnic
 | Google Agenda | Inserir reservas e considerar horários ocupados | Definido como objetivo |
 | Agenda do cliente | Convite para aceitar na própria agenda | Proposto |
 | Confirmação | Somente após aprovação explícita do profissional | Definido |
+| Antecedência mínima no piloto | 48 horas corridas para solicitações públicas | Definido |
+| Prazo para aprovação no piloto | 24 horas corridas desde a solicitação; expiração libera o horário e gera aviso | Definido |
 | Convite ao cliente | Disparado após aprovação e criação do evento no Google | Definido |
 | Recorrência | Suportar séries de agendamentos | Definido |
 | Quem cria séries | Inicialmente o profissional | Proposto; validar com a psicóloga |
@@ -77,7 +79,7 @@ O profissional trata a recuperação após verificação de identidade por proce
 - Preço, duração e regras aplicáveis são registrados na reserva para preservar o histórico após alteração do serviço.
 - Toda criação ou remarcação revalida disponibilidade no servidor.
 - Remarcar deve reservar o novo intervalo e liberar o antigo em uma operação consistente; falha mantém a reserva anterior.
-- Definir antecedência mínima, horizonte máximo de reserva, pausas e prazo de cancelamento antes do piloto.
+- No piloto, solicitações públicas exigem pelo menos 48 horas corridas de antecedência e têm prazo de aprovação de 24 horas corridas desde sua criação. Horizonte máximo, pausas e prazo de cancelamento continuam pendentes.
 
 ## 5. Autenticação e autorização
 
@@ -293,9 +295,9 @@ Regra definida pelo responsável: o envio pelo cliente é uma solicitação; som
 5. Falha de integração mantém confirmed com sincronização pendente/erro, avisa o profissional e agenda nova tentativa. Não presumir entrega ou aceitação do convite.
 6. Recusa, expiração e cancelamento liberam ocupação interna e podem gerar aviso apropriado, nunca convite. Transição concorrente com aprovação deve ter somente um resultado válido.
 
-### Ocupação enquanto pendente — proposta a validar
+### Ocupação enquanto pendente — política definida para o piloto
 
-Solicitação pendente segura o horário no Slotiva por prazo configurável, com expiração atômica. Definir o prazo com o profissional antes do piloto; nenhum valor foi acordado. Pending e confirmed competem pela mesma proteção contra sobreposição. Solicitações públicas têm limites para impedir retenção abusiva de horários. Não criar evento Google pendente neste fluxo; por isso, alterações externas ainda exigem revalidação na aprovação. Aprovação após expiração exige nova validação e não reativa silenciosamente a solicitação.
+Solicitação pública exige antecedência mínima de 48 horas corridas e segura o horário no Slotiva por até 24 horas corridas desde a criação, com expiração atômica. Os prazos foram aprovados pelo responsável pelo produto. Não há exceção pública para horários próximos no piloto. Pending e confirmed competem pela mesma proteção contra sobreposição. Solicitações públicas têm limites para impedir retenção abusiva de horários. Não criar evento Google pendente neste fluxo; por isso, alterações externas ainda exigem revalidação na aprovação. Aprovação após expiração exige nova validação e não reativa silenciosamente a solicitação.
 
 ### Remarcação e séries
 
@@ -308,10 +310,30 @@ A aprovação de uma série deve mostrar todas as ocorrências e conflitos. Nenh
 - Solicitação inicial nunca aparece como confirmada nem envia convite.
 - Apenas o profissional autorizado pode aprovar/recusar; token do cliente não pode confirmar.
 - Aprovação duplicada e corrida entre expiração, recusa e aprovação não duplicam ocupação, evento ou notificações.
-- Prazo pendente é configurado, exibido e testado antes do piloto.
+- Antecedência mínima de 48 horas e prazo de aprovação de 24 horas são aplicados no servidor, exibidos e testados antes do piloto.
 - Falhas de Google/e-mail não escondem estado nem produzem confirmação falsa de entrega.
 - Testar remarcação pendente, conservação do horário original e aprovação de séries.
 
 Referência oficial para convites: https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
 
 v1.1 — acrescenta aprovação profissional obrigatória e convite após aprovação; define propostas de retenção pendente e remarcação para validação.
+
+## 19. ADR-007 — antecedência e expiração do piloto (v1.2)
+
+Decisão aprovada: solicitações públicas só podem ser criadas para início a pelo menos 48 horas corridas do instante de criação. Cada solicitação permanece pending_approval por no máximo 24 horas corridas, bloqueando o intervalo no Slotiva. Não são horas úteis.
+
+- Calcular no servidor: start_at >= created_at + 48h; approval_expires_at = created_at + 24h. Armazenar ambos em UTC e exibir no fuso do profissional.
+- Aprovação só é válida quando now < approval_expires_at, com solicitação ainda pendente, versão válida e disponibilidade revalidada. No instante exato do vencimento, expiração prevalece.
+- Ao vencer sem decisão, transitar atomicamente para expired, liberar a ocupação e enfileirar aviso ao cliente. Não criar convite Google.
+- A aprovação e a expiração usam controle transacional para impedir que ambas vençam. Job periódico processa expirações; consultas e mutações tratam pendências vencidas como expiradas, sem depender apenas da pontualidade do job. Implementar liberação segura no mecanismo de ocupação existente.
+- Antes da confirmação, informar “Aguardando aprovação — ainda não confirmado” e a data/hora limite. Na expiração, comunicar que a solicitação não foi confirmada e oferecer nova solicitação.
+- Aplicar a antecedência também ao novo horário solicitado pelo cliente em remarcação; a reserva original segue válida até aprovação da troca. Este é detalhamento técnico da política, sujeito à validação do fluxo de remarcação.
+- Para séries públicas, caso venham a existir, a primeira ocorrência deve atender ao limite. Série criada pelo profissional e exceções administrativas não ganham bypass implícito; regras específicas precisam ser acordadas e auditadas.
+
+### Exemplos e aceitação
+
+Solicitação segunda-feira às 10h: primeiro início permitido quarta-feira às 10h; prazo de aprovação termina terça-feira às 10h. Aprovar antes desse limite confirma; no limite ou depois, não confirma a solicitação expirada.
+
+Testar limites exatos e imediatamente anteriores: 47h59min não atende; 48h atende; aprovação antes de 24h pode ocorrer; em 24h não. Cobrir relógio do servidor, corrida aprovação/expiração, repetição do job, liberação do intervalo e aviso sem duplicidade. Para falhas ambíguas de envio de e-mail, não alegar garantia universal de entrega única: usar deduplicação/idempotência do provedor quando disponível e registrar estado.
+
+v1.2 — fixa 48h de antecedência e 24h de aprovação para o piloto, com expiração, liberação e aviso. Requisito documentado; implementação e testes de aplicação pendentes.

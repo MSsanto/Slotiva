@@ -2,6 +2,13 @@
 
 Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits do Git; não é reconstruído nem rotulado como release sem evidência.
 
+## 2026-10-21 — prazos aprovados para o piloto
+
+- Documentação v1.2: antecedência mínima de 48 horas corridas para solicitação pública; aprovação em até 24 horas corridas desde a criação.
+- Expiração libera o horário e enfileira aviso ao cliente, sem convite; definidos limites temporais e disputa aprovação/expiração.
+- Removida a pendência do prazo na regra atual; registros históricos anteriores foram preservados.
+- Validação documental: consistência das regras atuais e exemplos de fronteira revisados. Implementação, testes de aplicação e deploy não realizados nesta alteração.
+
 ## 2026-10-21 — aprovação profissional e convite após confirmação
 
 - Atualizada documentação para v1.1: solicitações começam em pending_approval; somente o profissional confirma.
