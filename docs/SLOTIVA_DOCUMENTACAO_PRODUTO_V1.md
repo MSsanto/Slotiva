@@ -4,6 +4,10 @@ Versão: 1.2 · Data: 21/10/2026 · Responsável: Matheus Sergio
 
 “Horários livres que viram encontros.”
 
+## Estado de implementação — incremento 0.4.0
+
+Aprovação profissional, solicitação pendente, antecedência de 48h, expiração em 24h e histórico/outbox estão implementados para o profissional único. E-mail, Google, recorrência, multiusuário e proposta de remarcação confirmada permanecem pendentes. O restante deste documento descreve o alvo; detalhes e limites atuais estão em [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). Prontidão para produção não é presumida.
+
 ## 1. Objetivo e status
 
 Construir um produto de agendamento funcional para profissionais que atendem por horário, começando pela validação com um barbeiro e uma psicóloga. O mesmo projeto integra o portfólio como estudo de caso de engenharia e operação real.

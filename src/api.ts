@@ -12,6 +12,10 @@ export type Booking = {
   time: string;
   name: string;
   email: string;
+  status:
+    "pending_approval" | "confirmed" | "rejected" | "expired" | "cancelled";
+  approvalExpiresAt: number | null;
+  version: number;
 };
 export type Receipt = Booking & { cancelToken: string };
 export type Hours = { weekday: number; opens: string; closes: string };
@@ -68,3 +72,18 @@ export const formatDate = (date: string) =>
     month: "long",
     timeZone: "UTC",
   }).format(new Date(`${date}T12:00:00Z`));
+
+export const statusLabel = (status: Booking["status"]) =>
+  ({
+    pending_approval: "Aguardando aprovação — ainda não confirmado",
+    confirmed: "Confirmado pelo profissional",
+    rejected: "Solicitação recusada",
+    expired: "Solicitação expirada — horário liberado",
+    cancelled: "Cancelado",
+  })[status];
+export const formatDeadline = (seconds: number) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(seconds * 1000));

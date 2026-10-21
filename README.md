@@ -53,12 +53,13 @@ Preview deployments must use an isolated preview database before allowing writes
 ## Booking rules and atomicity
 
 - One fictional professional, with 30/45/60-minute services.
-- Tomorrow through 14 days ahead in America/Sao_Paulo.
+- At least 48 elapsed hours ahead, within the next 14 calendar days, in America/Sao_Paulo.
+- Requests start pending; the professional must approve within 24 elapsed hours. Expiry/rejection releases the held intervals. Existing pre-migration reservations remain confirmed.
 - Editable weekly hours; default weekdays 09:00–17:00.
 - Start times every 30 minutes; duration plus 15-minute buffer must fit inside opening hours.
 - Each occupied 15-minute interval has a unique `(date, minute)` key in `occupied_slots`.
 - SQL triggers insert/delete occupancy as part of the same INSERT/UPDATE that creates, reschedules or cancels a booking. Two concurrent requests cannot both claim the same interval. Direct SQL writes receive the same protection.
-- A failed reschedule rolls back all its changes, preserving the original booking and slots.
+- A failed pending-request time change rolls back all its changes, preserving the original booking and slots. Changing a pending request never extends its approval deadline. Confirmed customer rescheduling is blocked pending a separate approval-based flow.
 - Schedule edits use a single transactional D1 batch, with a database trigger preventing changes that invalidate future reservations. Booking validation also checks the current schedule inside database triggers, avoiding a read/write race.
 - HTTP 409 reports a conflicting interval; HTTP 422 reports invalid data or hours.
 
@@ -70,10 +71,18 @@ The current three services occupy at most five 15-minute intervals. Extending se
 - Login attempts are limited to five per client IP per 15-minute window in D1.
 - Random 256-bit session tokens expire after eight hours; only SHA-256 hashes are stored in D1. Logout revokes the token.
 - Administrative writes and login require an exact same-origin Origin header. The app needs no cross-origin cookie exception.
-- Customer cancellation and rescheduling require a separate random token returned only at booking creation. The browser keeps it only in React memory; reloading/leaving loses customer self-service access. The professional can still cancel after login.
+- Customer cancellation and rescheduling require a separate random token returned only at booking creation. The browser keeps it only in React memory; reloading/leaving loses customer self-service access. While the receipt is open, status is refreshed every 15 seconds. The professional can still cancel after login.
 - API responses use `Cache-Control: no-store`. No localStorage customer records, public customer listing or email delivery.
 - Use fictional data in the portfolio demo. Public abuse protection, manual accessibility review, retention/backups policy and customer recovery/notifications are pending before real customer use.
 - If `ADMIN_PASSWORD_HASH` is missing, administration stays closed with HTTP 503; public bookings can still work.
+
+## Professional approval (0.4.0)
+
+The administrator can approve or reject pending requests. Customers see their status and deadline; they cannot confirm their own request. A five-minute Cron and request-time cleanup expire overdue requests atomically, with transition history and a durable notification outbox. Approval at or after the deadline is rejected by the database.
+
+**No email or Calendar invitation is sent yet.** Outbox entries await integration. Login remains password-based and the MVP still has one professional.
+
+Read [the implementation and migration runbook](docs/APPROVAL_WORKFLOW.md) before rollout. Migration 0002 and the new Worker must be coordinated in a maintenance window; the old Worker is incompatible with the new write triggers. The code change does not apply production migrations or deploy itself.
 
 ## Verification
 
@@ -120,6 +129,7 @@ Pending product work: English locale, holidays/date exceptions, pagination/archi
 
 Slotiva is evolving from a portfolio demonstration into a functional scheduling product for real customers. Google professional sign-in, Google Calendar integration, customer access through temporary email links, and recurring appointments are planned work, not current capabilities.
 
+- [Approval implementation and rollout](docs/APPROVAL_WORKFLOW.md)
 - [Product and engineering documentation](docs/SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md)
 - [Documentation index and current-state notes](docs/README.md)
 - [Golden Rule and contributor instructions](AGENTS.md)
