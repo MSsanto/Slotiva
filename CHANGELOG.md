@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-21 — Google Web Client ID registered for isolated Preview
+
+- Records the owner-supplied public OAuth Client ID in the product-homologation
+  `previews.vars` only. No credential secret or master identity was supplied.
+- Documents the exact required Google Console callback, Preview-only secrets,
+  master Google subject verification and negative/positive acceptance checks.
+- No real OAuth sign-in, remote deployment, CI execution or production change is
+  claimed; the button remains disabled until all server-side settings exist.
+
 ## 2026-10-21 — operator confirms hosted API health and closed login
 
 - Owner supplied PowerShell responses from the stable product Preview:
