@@ -1,5 +1,7 @@
 # Documentação do Slotiva
 
+- [Identidade visual](IDENTIDADE_VISUAL.md): versões aprovadas e aplicações do logo.
+
 - [Produto e engenharia v1](SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md): requisitos, decisões, autenticação, modelo de dados, integração, recorrência, operação e critérios de piloto.
 - [Diretrizes e Golden Rule](../AGENTS.md): obrigações para toda alteração.
 - [Histórico de mudanças](../CHANGELOG.md): entregas e evidências de validação.

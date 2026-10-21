@@ -2,6 +2,13 @@
 
 Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits do Git; não é reconstruído nem rotulado como release sem evidência.
 
+## 2026-10-21 — aplicações da identidade visual
+
+- Registradas as versões aprovadas: logo completo para apresentação/página inicial; símbolo e nome no cabeçalho; símbolo isolado para favicon e celular.
+- Documentados critérios de legibilidade, proporção e acessibilidade.
+- Validação: revisão da correspondência com a decisão do responsável e dos links relativos. Alteração exclusivamente documental; testes de aplicação não executados.
+- Pendências: exportação final das variantes, aplicação no código e conferência visual; nenhum deploy realizado.
+
 ## 2026-10-21 — prazos aprovados para o piloto
 
 - Documentação v1.2: antecedência mínima de 48 horas corridas para solicitação pública; aprovação em até 24 horas corridas desde a criação.
