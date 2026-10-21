@@ -100,3 +100,7 @@ The main branch API reported protected=false on 2026-10-21. Required reviews/che
 must be configured through repository administration; CI alone is not a merge
 restriction. Record actual settings and rerun evidence after any configuration
 change rather than asserting protection is enabled.
+
+Additional recurrence regressions verify the explicit under-48h professional
+agreement path while public requests still fail, the 366-day horizon and
+professional removal cancelling confirmed series without erasing audit history.

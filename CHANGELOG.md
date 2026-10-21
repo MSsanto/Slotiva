@@ -32,7 +32,7 @@ meaning of earlier Portuguese entries, whose original wording remains in Git.
 - Updates maintained docs to English, including current API, product requirements,
   visual identity, ADRs, governance and operational handoff. Preserves approved
   logo variant decisions from main; final logo exports/application remain pending.
-- Local evidence: 52 Worker/rule/identity/tenant/recurrence tests and one frontend
+- Local evidence: 54 Worker/rule/identity/tenant/recurrence tests and one frontend
   unit test passed; build passed. Final formatting/lint/dry-run/documentation and
   browser CI evidence are recorded in the PR after the final checks.
 - No remote migrations or production deployment performed. Email delivery,

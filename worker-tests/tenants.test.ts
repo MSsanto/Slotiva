@@ -486,6 +486,90 @@ describe("Professional-entered fixed recurrence", () => {
     ).toBe(1);
     expect((await publicBooking(a)).status).toBe(201);
   });
+  it("permits explicitly agreed appointments under public notice while keeping public restrictions", async () => {
+    await request(
+      "/api/admin/hours",
+      "PUT",
+      { weekdays: [0, 1, 2, 3, 4, 5, 6], opens: "09:00", closes: "17:00" },
+      authA,
+    );
+    const d = new Date(`${today()}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    const near = d.toISOString().slice(0, 10);
+    expect(
+      (
+        await request(
+          "/api/admin/series",
+          "POST",
+          series({ date: near, frequency: "once", count: 1 }),
+          authA,
+        )
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await request(`/api/public/${a.slug}/bookings`, "POST", {
+          ...payload(),
+          date: near,
+          email: "fictional@example.com",
+        })
+      ).status,
+    ).toBe(422);
+    d.setUTCDate(d.getUTCDate() + 367);
+    expect(
+      (
+        await request(
+          "/api/admin/series",
+          "POST",
+          series({
+            date: d.toISOString().slice(0, 10),
+            frequency: "once",
+            count: 1,
+          }),
+          authA,
+        )
+      ).status,
+    ).toBe(422);
+  });
+  it("removing a professional cancels every confirmed series occurrence without erasing history", async () => {
+    expect(
+      (await request("/api/admin/series", "POST", series(), authA)).status,
+    ).toBe(201);
+    expect(
+      (
+        await request(
+          `/api/master/professionals/${a.id}`,
+          "DELETE",
+          { version: 1 },
+          master,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM bookings WHERE professional_id=? AND status='cancelled'",
+        )
+        .bind(a.id)
+        .first("n"),
+    ).toBe(4);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM occupied_slots WHERE professional_id=?",
+        )
+        .bind(a.id)
+        .first("n"),
+    ).toBe(0);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM booking_events WHERE booking_id IN (SELECT id FROM bookings WHERE professional_id=?)",
+        )
+        .bind(a.id)
+        .first("n"),
+    ).toBe(8);
+  });
   it("deduplicates simultaneous retries and rejects reuse with changed contents", async () => {
     const body = series();
     const results = await Promise.all([
