@@ -83,8 +83,6 @@ disabled password access from that network. It does not establish real Google
 consent, master authorization or end-to-end appointment acceptance. The configured PUBLIC_ORIGIN now uses this
 stable Preview host; publish its config update before testing Google redirects.
 
-## 2. Configure Google and bootstrap a master
-
 ### Supplied OAuth Client ID (2026-10-21)
 
 The owner supplied the **public** OAuth Web Client ID `1021260164493-bcse5qjedmr74meajund6fipmbt98g9r.apps.googleusercontent.com`.
