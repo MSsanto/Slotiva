@@ -24,7 +24,7 @@
   // Dedicated product-homologation D1; production and the older Preview stay separate.
   // Apply migrations with the matching PREVIEW_DB config before testing this Preview.
   "previews": {
-    "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "google" },
+    "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "google", "PUBLIC_ORIGIN": "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev" },
     "d1_databases": [
       {
         "binding": "DB",

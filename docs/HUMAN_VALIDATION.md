@@ -61,11 +61,32 @@ callback origin. A successful D1 migration alone does not establish a healthy
 Worker, OAuth configuration or practitioner acceptance. Google login should remain
 setup-pending until the credentials and master identity are configured.
 
+### Recorded Preview publication — 2026-10-21
+
+The owner supplied successful Wrangler Preview output for feat/product-readiness,
+application version 0.5.0, unique deployment 3e08d642. Stable URL:
+https://feat-product-readiness-slotiva.matheus-sergio.workers.dev.
+The agent's HTTP probes to /api/health and /api/auth/config received 403 with
+body error code 1010; the web retrieval fallback could not access either endpoint.
+This does not establish healthy API responses or diagnose a D1/application fault.
+Check from the authenticated operator's notebook without weakening Cloudflare rules:
+
+```powershell
+Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/health"
+Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/auth/config"
+```
+
+Expected schema health is status=ok, storage=D1, approvalWorkflow=true.
+Until Google configuration is complete, passwordEnabled must be false and
+Google login may remain unavailable. Record the actual responses before claiming
+hosted health or Google acceptance. The configured PUBLIC_ORIGIN now uses this
+stable Preview host; publish its config update before testing Google redirects.
+
 ## 2. Configure Google and bootstrap a master
 
 Create a separate Google OAuth Web client and consent configuration for testing.
 Authorize test accounts. Register the exact stable Preview-origin callback
-`https://<stable-preview-host>/api/admin/google/callback`; deployment-specific
+`https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/admin/google/callback`; deployment-specific
 unique URLs are unsuitable for a stable configured callback. Identity scopes
 are openid/email/profile. Do not request Calendar scopes in this increment.
 

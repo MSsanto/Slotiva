@@ -4,6 +4,20 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-21 — stable product Preview origin and pending HTTP validation
+
+- Owner-provided Wrangler output confirms successful 0.5.0 publication of
+  feat/product-readiness, unique deployment 3e08d642. Records the stable Preview
+  origin and configures PUBLIC_ORIGIN only in previews.vars, with the exact
+  Google callback in the English acceptance guide. No credentials are added.
+- Agent probes to health/auth config received HTTP 403/code 1010 and web retrieval
+  could not access the endpoints. Hosted API health remains unverified; added
+  exact PowerShell checks for the operator rather than claiming a database fault
+  or successful OAuth. Google credentials and master identity remain pending.
+- Validation: reviewed configuration diff, canonical-origin/binding assertions
+  and documentation links/change matrix. No application code or schema change;
+  no new application tests required. No production release performed.
+
 ## 2026-10-21 — homologation migrations confirmed by the owner
 
 - Owner-provided Wrangler output identifies remote PREVIEW_DB as

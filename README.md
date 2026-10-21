@@ -102,7 +102,11 @@ npx wrangler preview
 
 The owner's Wrangler output confirms database creation and successful remote
 application of migrations 0001–0005 on 2026-10-21 to this exact homologation ID.
-Preview health and real Google setup still require separate confirmation. The old
+The owner also supplied a successful 0.5.0 Preview upload for this branch at
+https://feat-product-readiness-slotiva.matheus-sergio.workers.dev.
+PUBLIC_ORIGIN is set to that stable Preview origin; Google client credentials and
+master subject are still unconfigured. Agent HTTP probes received 403/code 1010,
+so API health/auth-mode responses require a check from the owner’s notebook. The old
 Preview must stay untouched while an incompatible Worker writes. Do not use
 npm run db:remote for homologation. If the D1 creation wizard modified your local
 wrangler.jsonc, back it up outside the repository and restore only that file's
