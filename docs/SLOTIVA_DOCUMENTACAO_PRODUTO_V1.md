@@ -1,6 +1,6 @@
 # Slotiva — documentação de produto e engenharia
 
-Versão: 1.0 · Data: 21/10/2026 · Responsável: Matheus Sergio
+Versão: 1.1 · Data: 21/10/2026 · Responsável: Matheus Sergio
 
 “Horários livres que viram encontros.”
 
@@ -23,6 +23,8 @@ Convenções: **Definido** = requisito acordado; **Proposto** = decisão técnic
 | Identificação | ID interno permanente; e-mail/telefone como contatos | Definido |
 | Google Agenda | Inserir reservas e considerar horários ocupados | Definido como objetivo |
 | Agenda do cliente | Convite para aceitar na própria agenda | Proposto |
+| Confirmação | Somente após aprovação explícita do profissional | Definido |
+| Convite ao cliente | Disparado após aprovação e criação do evento no Google | Definido |
 | Recorrência | Suportar séries de agendamentos | Definido |
 | Quem cria séries | Inicialmente o profissional | Proposto; validar com a psicóloga |
 | WhatsApp | Fora do primeiro escopo | Proposto após discussão de custos |
@@ -41,7 +43,7 @@ Cada profissional acessa somente seus dados. Entrar com uma conta Google válida
 
 ### Cliente
 
-Abre a página pública do profissional → escolhe serviço e horário → informa nome, e-mail e telefone → confirma → recebe confirmação e convite → gerencia a reserva por acesso temporário.
+Abre a página pública do profissional → escolhe serviço e horário → informa nome, e-mail e telefone → envia solicitação → recebe aviso de pendência → profissional aprova → recebe confirmação e convite → gerencia a reserva por acesso temporário.
 
 Depois de sair, fechar o navegador ou trocar de aparelho: abre “Meus agendamentos”, informa e-mail e recebe novo link. Não precisa recordar senha. A resposta na tela não revela se o e-mail tem cadastro.
 
@@ -57,11 +59,11 @@ O profissional trata a recuperação após verificação de identidade por proce
 | RF02 | Isolamento por profissional | Profissional A não lê nem modifica dados de B, inclusive alterando IDs |
 | RF03 | Serviços | Serviço possui nome, duração e estado ativo; preço é opcional |
 | RF04 | Disponibilidade | Respeita expediente, fuso, duração, intervalos e bloqueios |
-| RF05 | Reserva pública | Cliente reserva sem senha; dados são validados no servidor |
+| RF05 | Solicitação pública | Cliente solicita sem senha; status inicial pending_approval e mensagem explícita de aguardar aprovação |
 | RF06 | Concorrência | Duas tentativas simultâneas para intervalos sobrepostos geram no máximo uma reserva ativa |
 | RF07 | Acesso temporário | Link expirado, revogado ou já consumido não cria nova sessão |
 | RF08 | Gestão pelo cliente | Cliente acessa somente o escopo autorizado; regras de cancelamento são aplicadas no servidor |
-| RF09 | Integração Calendar | Reserva tem vínculo rastreável com o evento; repetição de envio não duplica evento |
+| RF09 | Integração Calendar | Só após aprovação há evento com convite; repetição de envio não duplica evento |
 | RF10 | Convite | Destinatário recebe convite com título discreto; entrega e aceitação não são presumidas |
 | RF11 | Recorrência | Série possui limite explícito; conflitos são exibidos antes de confirmar |
 | RF12 | Alteração de série | Distingue uma ocorrência de esta e as próximas; alterações são auditáveis |
@@ -107,7 +109,7 @@ Acesso offline permite renovar credenciais para sincronização sem sessão aber
 
 ### ADR-004 — fonte de verdade e conflitos externos
 
-Slotiva controla reservas e regras de negócio; Google oferece visualização e ocupações externas. Banco confirma a reserva e registra uma tarefa de sincronização na mesma transação. O envio ao Google ocorre com idempotência e tentativas controladas. Mostrar separadamente “reserva confirmada” e “sincronização pendente/com erro”.
+Slotiva controla reservas e regras de negócio; Google oferece visualização e ocupações externas. Ao aprovar, o banco confirma a reserva e registra uma tarefa de sincronização na mesma transação, após revalidar disponibilidade e autorização. O envio ao Google ocorre com idempotência e tentativas controladas. Mostrar separadamente “reserva confirmada” e “sincronização pendente/com erro”.
 
 Consultar ocupações externas antes da confirmação e manter reconciliação periódica. Não existe transação atômica entre nosso banco e a agenda Google: uma alteração externa simultânea ainda pode criar conflito. Ao detectá-lo, alertar o profissional e encaminhar resolução; não cancelar nem mover atendimento silenciosamente. Se não houver leitura confiável da agenda, suspender novas confirmações automáticas até recuperar ou obter revisão explícita.
 
@@ -153,7 +155,7 @@ Operações suportadas: alterar/cancelar somente uma ocorrência; alterar/cancel
 
 Todas as referências entre dados de negócio devem garantir o mesmo professional_id. Índices cobrem disponibilidade por profissional/intervalo e contatos normalizados. Evitar cascatas destrutivas que apaguem histórico sem política definida.
 
-Status de reserva propostos: confirmed, cancelled, completed, no_show. Estado de sincronização é separado: pending, synced, failed, disconnected. Estado de verificação de contato também é separado.
+Status de reserva: pending_approval, confirmed, rejected, expired, cancelled, completed, no_show. Estado de sincronização é separado: pending, synced, failed, disconnected. Estado de verificação de contato também é separado.
 
 ### ADR-005 — persistência e exclusão mútua
 
@@ -178,7 +180,9 @@ Prefixo /api/v1; contratos finais serão publicados em OpenAPI após inspeção 
 | POST /client/bookings/{id}/reschedule | Remarcar com versão esperada |
 | POST /client/bookings/{id}/cancel | Cancelar conforme política |
 | GET /professional/bookings | Agenda do profissional autenticado |
-| POST /professional/series | Criar série limitada |
+| POST /professional/bookings/{id}/approve | Aprovar solicitação pendente com versão esperada e revalidação |
+| POST /professional/bookings/{id}/reject | Recusar solicitação pendente e liberar ocupação |
+| POST /professional/series | Criar série limitada; exige aprovação explícita do profissional |
 | POST /professional/series/{id}/changes | Aplicar escopo occurrence ou following |
 | GET /integrations/google/start | Iniciar consentimento autenticado |
 | GET /integrations/google/callback | Validar retorno OAuth e vincular conexão |
@@ -275,3 +279,39 @@ Consultadas durante a conversa; confirmar requisitos e preços na implementaçã
 ## 17. Histórico
 
 v1.0 — consolida produto real com demonstração de portfólio, acesso Google profissional, cliente sem senha, acesso por e-mail, integração de agenda, recorrência e critérios de piloto. Documento preparado sem alteração de código ou publicação.
+
+## 18. ADR-006 — aprovação profissional obrigatória (v1.1)
+
+Regra definida pelo responsável: o envio pelo cliente é uma solicitação; somente ação explícita do profissional confirma o agendamento. Esta seção prevalece sobre referências anteriores a confirmação automática. Mudança de requisito, ainda não implementada.
+
+### Fluxo e notificações
+
+1. Criar pending_approval sem evento com participante e sem convite. A tela e eventual e-mail dizem “Solicitação recebida — aguardando aprovação”, nunca “Confirmado”.
+2. Profissional aprova ou recusa no painel autenticado. Revalidar disponibilidade externa e interna; falha de leitura externa impede aprovação automática até revisão/recuperação.
+3. Aprovação transita atomicamente para confirmed e grava trabalho na outbox, com ator, data e versão. Repetir o comando não repete a confirmação nem o convite.
+4. Criar evento Google com e-mail do cliente em attendees e sendUpdates=all. O Google envia o convite; e-mail transacional próprio pode complementar a confirmação, sem criar outro evento.
+5. Falha de integração mantém confirmed com sincronização pendente/erro, avisa o profissional e agenda nova tentativa. Não presumir entrega ou aceitação do convite.
+6. Recusa, expiração e cancelamento liberam ocupação interna e podem gerar aviso apropriado, nunca convite. Transição concorrente com aprovação deve ter somente um resultado válido.
+
+### Ocupação enquanto pendente — proposta a validar
+
+Solicitação pendente segura o horário no Slotiva por prazo configurável, com expiração atômica. Definir o prazo com o profissional antes do piloto; nenhum valor foi acordado. Pending e confirmed competem pela mesma proteção contra sobreposição. Solicitações públicas têm limites para impedir retenção abusiva de horários. Não criar evento Google pendente neste fluxo; por isso, alterações externas ainda exigem revalidação na aprovação. Aprovação após expiração exige nova validação e não reativa silenciosamente a solicitação.
+
+### Remarcação e séries
+
+Proposta: cliente solicita novo horário e o profissional aprova. A reserva confirmada original permanece válida até aprovação; a solicitação de mudança possui estado próprio. Aprovação troca os intervalos consistentemente e atualiza o mesmo evento/convite. Recusa ou expiração mantém o original e libera eventual retenção do novo horário. Não aplicar o endpoint antigo de remarcação imediata ao fluxo do cliente.
+
+A aprovação de uma série deve mostrar todas as ocorrências e conflitos. Nenhuma ocorrência é convidada antes de aprovada. Criação pelo profissional pode incluir aprovação na mesma ação, desde que explícita e auditada.
+
+### Critérios adicionais de aceitação
+
+- Solicitação inicial nunca aparece como confirmada nem envia convite.
+- Apenas o profissional autorizado pode aprovar/recusar; token do cliente não pode confirmar.
+- Aprovação duplicada e corrida entre expiração, recusa e aprovação não duplicam ocupação, evento ou notificações.
+- Prazo pendente é configurado, exibido e testado antes do piloto.
+- Falhas de Google/e-mail não escondem estado nem produzem confirmação falsa de entrega.
+- Testar remarcação pendente, conservação do horário original e aprovação de séries.
+
+Referência oficial para convites: https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
+
+v1.1 — acrescenta aprovação profissional obrigatória e convite após aprovação; define propostas de retenção pendente e remarcação para validação.
