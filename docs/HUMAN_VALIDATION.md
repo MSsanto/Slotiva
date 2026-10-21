@@ -85,6 +85,33 @@ stable Preview host; publish its config update before testing Google redirects.
 
 ## 2. Configure Google and bootstrap a master
 
+### Supplied OAuth Client ID (2026-10-21)
+
+The owner supplied the **public** OAuth Web Client ID `1021260164493-bcse5qjedmr74meajund6fipmbt98g9r.apps.googleusercontent.com`.
+This PR configures it **only under `previews.vars.GOOGLE_CLIENT_ID`** in
+`wrangler.jsonc`. It does not configure production, authorize users or
+demonstrate successful sign-in. The owner must verify that the supplied client
+is of type **Web application** in the intended Google Cloud project and that
+the exact callback below is on that client's authorized redirect URI list.
+Since this is a server-side authorization-code flow, do not add a second
+Google Identity Services React login or place the Client Secret in Vite.
+
+Configure `GOOGLE_CLIENT_SECRET` and `MASTER_GOOGLE_SUBS` as **Preview-scoped
+secrets** with authenticated Cloudflare tooling/dashboard, never in Git.
+The master value is the verified immutable Google account `sub`, **not an
+email address or OAuth Client ID**. Re-publish the isolated Preview with this
+branch's config, then verify `/api/auth/config` changes to
+`googleEnabled=true` and exercise a valid and denied login. Check the
+secrets' actual Preview scope before declaring OAuth ready. If
+`googleEnabled=false`, inspect missing environment bindings without printing
+their values. Do not switch to demo mode or touch production to make it pass.
+
+**Operator acceptance evidence still required:** client type/callback confirmed,
+test-user consent configured, Preview secrets set, authorized master sign-in,
+unauthorized identity denied, logout/revocation and no token leakage.
+
+## 2. Configure Google and bootstrap a master
+
 Create a separate Google OAuth Web client and consent configuration for testing.
 Authorize test accounts. Register the exact stable Preview-origin callback
 `https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/admin/google/callback`; deployment-specific
