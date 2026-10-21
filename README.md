@@ -90,8 +90,10 @@ share data with each other, but not with production. Use fictional data only.
 
 The missing-`previews` error occurs before the application custom build. Both
 the explicit resource binding and a remotely initialized schema are necessary
-for a usable booking Preview. `preview_urls: false` is not a substitute for the
-`previews` block and does not itself configure resource isolation.
+for a usable booking Preview. `preview_urls: true` enables its Workers.dev URL;
+the separate `previews` block configures resource isolation. If deployment reports
+no active URLs, confirm this flag is true and redeploy with `npx wrangler preview`.
+Do not publish the feature branch with `wrangler deploy` merely to enable a Preview URL.
 
 Reference: [Cloudflare Preview resources and D1 migrations](https://developers.cloudflare.com/workers/previews/resources/).
 

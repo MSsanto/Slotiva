@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "slotiva",
-  "preview_urls": false,
+  "preview_urls": true,
   "main": "worker/index.ts",
   "build": { "command": "npm run build" },
   "compatibility_date": "2026-10-19",
