@@ -115,3 +115,14 @@ Playwright starts Vite. Tests exercise reservation → rescheduling → admin lo
 The initial FastAPI/PostgreSQL implementation remains in Git history through commit `c44ee77`. It was replaced to meet the requirement that the entire product run on Cloudflare. React's API contract and screens were preserved; the PostgreSQL exclusion constraint became unique interval ownership enforced by D1 triggers.
 
 Pending product work: English locale, holidays/date exceptions, pagination/archiving for the admin agenda and production observability. Payments and multiple professionals remain outside this MVP.
+
+## Product roadmap and governance
+
+Slotiva is evolving from a portfolio demonstration into a functional scheduling product for real customers. Google professional sign-in, Google Calendar integration, customer access through temporary email links, and recurring appointments are planned work, not current capabilities.
+
+- [Product and engineering documentation](docs/SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md)
+- [Documentation index and current-state notes](docs/README.md)
+- [Golden Rule and contributor instructions](AGENTS.md)
+- [Change history](CHANGELOG.md)
+
+**Every change must be implemented and documented on GitHub. Version control is as important as implementation.** Local-only work is not a completed delivery. Never commit customer data or secrets. Real-customer rollout requires the documented pilot acceptance checks.
