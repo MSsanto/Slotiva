@@ -105,8 +105,11 @@ application of migrations 0001–0005 on 2026-10-21 to this exact homologation I
 The owner also supplied a successful 0.5.0 Preview upload for this branch at
 https://feat-product-readiness-slotiva.matheus-sergio.workers.dev.
 PUBLIC_ORIGIN is set to that stable Preview origin; Google client credentials and
-master subject are still unconfigured. Agent HTTP probes received 403/code 1010,
-so API health/auth-mode responses require a check from the owner’s notebook. The old
+master subject are still unconfigured. The owner’s notebook checks returned
+health status=ok/storage=D1/approvalWorkflow=true and auth config
+googleEnabled=false/passwordEnabled=false. This establishes the hosted schema
+probe and closed password access, not successful Google login. Earlier agent
+probes received 403/code 1010; that result did not establish a D1 fault. The old
 Preview must stay untouched while an incompatible Worker writes. Do not use
 npm run db:remote for homologation. If the D1 creation wizard modified your local
 wrangler.jsonc, back it up outside the repository and restore only that file's

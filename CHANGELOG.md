@@ -4,6 +4,19 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-21 — operator confirms hosted API health and closed login
+
+- Owner supplied PowerShell responses from the stable product Preview:
+  /api/health reports status=ok, storage=D1, approvalWorkflow=true;
+  /api/auth/config reports googleEnabled=false and passwordEnabled=false.
+  This supersedes the pending operator-side HTTP check, without claiming that
+  earlier agent 403 responses diagnosed a database problem.
+- Documents the next Google Web client creation steps and exact callback.
+  Real consent, verified master identity and client/secret configuration remain
+  pending. No secrets, application code or infrastructure settings changed.
+- Documentation-only validation: local Markdown links, change matrix and diff
+  consistency. No new application tests required; no production release performed.
+
 ## 2026-10-21 — stable product Preview origin and pending HTTP validation
 
 - Owner-provided Wrangler output confirms successful 0.5.0 publication of

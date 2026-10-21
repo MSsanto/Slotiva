@@ -76,10 +76,11 @@ Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers
 Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/auth/config"
 ```
 
-Expected schema health is status=ok, storage=D1, approvalWorkflow=true.
-Until Google configuration is complete, passwordEnabled must be false and
-Google login may remain unavailable. Record the actual responses before claiming
-hosted health or Google acceptance. The configured PUBLIC_ORIGIN now uses this
+The owner subsequently ran those exact notebook checks and supplied:
+health status=ok, storage=D1, approvalWorkflow=true; auth config
+googleEnabled=false, passwordEnabled=false. This confirms the schema probe and
+disabled password access from that network. It does not establish real Google
+consent, master authorization or end-to-end appointment acceptance. The configured PUBLIC_ORIGIN now uses this
 stable Preview host; publish its config update before testing Google redirects.
 
 ## 2. Configure Google and bootstrap a master
@@ -89,6 +90,24 @@ Authorize test accounts. Register the exact stable Preview-origin callback
 `https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/admin/google/callback`; deployment-specific
 unique URLs are unsuitable for a stable configured callback. Identity scopes
 are openid/email/profile. Do not request Calendar scopes in this increment.
+
+### Create the Google Web client
+
+1. Select a separate test project in Google Cloud Console, for example
+   Slotiva Homologation. Open Google Auth platform > Branding and complete app
+   name, support email and developer contact information.
+2. In Audience, choose External for testing with personal Google accounts, keep
+   the app in Testing, and add the intended master/test accounts as test users.
+3. In Clients, create a Web application OAuth client named Slotiva Homologation.
+   Register the exact stable Preview callback shown above under Authorized
+   redirect URIs. The deployment-specific unique URL is not the callback.
+4. Keep Client ID and Client Secret privately for configuration in the correct
+   Preview environment. Do not commit downloaded client JSON or share secrets
+   in chat. Creating the client alone does not enable master access: the verified
+   master subject and environment settings below are still required.
+
+References: [Google consent setup](https://developers.google.com/workspace/guides/configure-oauth-consent)
+and [server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server).
 
 In the correct homologation/Preview environment, configure AUTH_MODE=google,
 COOKIE_SECURE=true, PUBLIC_ORIGIN as the exact HTTPS origin without a trailing
