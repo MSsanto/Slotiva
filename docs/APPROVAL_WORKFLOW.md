@@ -97,7 +97,10 @@ database while an older Preview still writes there. Use a dedicated approval
 Preview database, or retire incompatible Preview writers in an authorized window.
 The current Preview and migration configs target the dedicated product-homologation
 D1 created by the owner, rather than the older shared Preview. Follow
-[human validation](HUMAN_VALIDATION.md) to apply its schema and verify the deployment. No remote migration or production release was performed for this review.
+[human validation](HUMAN_VALIDATION.md) for the owner-reported successful homologation migrations 0001–0005 and the
+remaining deployment/Google acceptance checks. The earlier approval review did not
+perform a remote migration or production release; no production migration is
+established by the new homologation evidence.
 
 ## Verification and evidence
 

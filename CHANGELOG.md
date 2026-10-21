@@ -4,6 +4,18 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-21 — homologation migrations confirmed by the owner
+
+- Owner-provided Wrangler output identifies remote PREVIEW_DB as
+  74b37b6b-7f9e-40a3-b685-546d7a0a76ac and reports migrations 0001–0005
+  successful. This evidence is distinct from an independent remote schema query.
+- Updated the English current-state/readme/acceptance notes to record applied
+  homologation schema rather than pending migrations. Next steps are the matching
+  Preview deployment/health check and real Google/master-account configuration.
+- Documentation-only update: reviewed terminal evidence, local links and change
+  consistency. No application code/configuration changed or new application tests
+  required. No production migration/deployment is established by this output.
+
 ## 2026-10-21 — dedicated product-homologation D1 configuration
 
 - Owner created slotiva-product-homologation, ID

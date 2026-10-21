@@ -45,6 +45,22 @@ npm run db:remote, which targets production. Confirm the displayed resource ID
 before accepting any migration prompt. A missing or incorrect binding should fail, not choose
 another database. Check `/api/health` after the Preview has its binding.
 
+### Recorded migration evidence — 2026-10-21
+
+The owner supplied terminal output for the migration command above. It identifies
+remote PREVIEW_DB as `74b37b6b-7f9e-40a3-b685-546d7a0a76ac` and reports all five
+migrations successful: 0001_initial.sql, 0002_professional_approval.sql,
+0003_google_login.sql, 0004_professional_tenants.sql and
+0005_professional_recurrence.sql. This is operator-provided execution evidence,
+not an independent agent query of the remote schema. No production migration is
+shown by that output. Do not rerun initial setup to try to create another database.
+
+Next, deploy/update this branch's Preview with npx wrangler preview. Record the
+stable Preview URL and query its /api/health before setting the exact Google
+callback origin. A successful D1 migration alone does not establish a healthy
+Worker, OAuth configuration or practitioner acceptance. Google login should remain
+setup-pending until the credentials and master identity are configured.
+
 ## 2. Configure Google and bootstrap a master
 
 Create a separate Google OAuth Web client and consent configuration for testing.
@@ -130,5 +146,6 @@ The proposed RPO 24h/RTO 4h are targets, not demonstrated guarantees.
 For an eventual production release, authorize backups and a maintenance window,
 pause old writers, apply reviewed additive migrations and deploy the matching
 Worker, then validate before reopening. Never roll back only the Worker to an
-incompatible schema. Prepare a compatible schema/data restoration plan. This
-increment performs no production deploy or remote migration.
+incompatible schema. Prepare a compatible schema/data restoration plan. No
+production deployment is established by this handoff. The owner-reported remote
+homologation migration is recorded above; production release remains separate.

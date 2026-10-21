@@ -20,4 +20,6 @@ quotes retain their language. Source and migrations establish implementation;
 a PR or green CI does not establish deployment. This increment consolidates the
 approval/documentation work with Google identity, master management, tenant pages
 and finite professional-led recurrence. Email delivery, recovery and Google
-Calendar remain pending. No production release or remote migration is performed.
+Calendar remain pending. The owner reported successful remote migrations 0001–0005
+on the dedicated homologation D1 on 2026-10-21; hosted health and Google acceptance
+remain pending. No production release is established.

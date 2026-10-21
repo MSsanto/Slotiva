@@ -100,8 +100,9 @@ npx wrangler d1 migrations apply PREVIEW_DB --remote --config ./wrangler.preview
 npx wrangler preview
 ```
 
-Database creation is evidenced by the owner's Wrangler output; remote migrations,
-Preview health and Google setup still require separate confirmation. The old
+The owner's Wrangler output confirms database creation and successful remote
+application of migrations 0001–0005 on 2026-10-21 to this exact homologation ID.
+Preview health and real Google setup still require separate confirmation. The old
 Preview must stay untouched while an incompatible Worker writes. Do not use
 npm run db:remote for homologation. If the D1 creation wizard modified your local
 wrangler.jsonc, back it up outside the repository and restore only that file's
