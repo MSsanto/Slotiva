@@ -1,3 +1,4 @@
+import CalendarSettings from "./CalendarSettings";
 import ServiceSettings from "./ServiceSettings";
 import AgreedBookings from "./AgreedBookings";
 import { Navigate } from "react-router-dom";
@@ -405,6 +406,7 @@ export default function AdminPage() {
         )}
       </div>
       <AgreedBookings />
+      {authOptions.data?.googleEnabled && <CalendarSettings />}
       <ServiceSettings />
       <ProfessionalSettings />
       {hours.data && (

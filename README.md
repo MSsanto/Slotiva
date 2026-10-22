@@ -35,9 +35,12 @@ is in Portuguese; maintained documentation is in English. The browser title is
   cancels active appointments and frees slots; it preserves audit/history and is
   not a personal-data erasure procedure.
 
-**Email and Google Calendar are not integrated yet.** Notification outbox rows
-are durable intents, not sent messages. Calendar busy-time checks, event creation,
-invites and recovery links remain pending. Professionals can create, edit and
+**Email, Calendar event synchronization and invitations remain pending.**
+A separate Google Calendar connection and manual primary-calendar availability
+lookup are implemented; external consent/setup and hosted acceptance remain pending.
+The panel requests read-only free/busy permission and does not enforce external
+conflicts in scheduling yet. Notification outbox rows are durable intents, not sent
+messages. See [Calendar connection setup](docs/CALENDAR_CONNECTION.md). Professionals can create, edit and
 deactivate their own services: name, description, optional duration (15–240 minutes
 in 5-minute steps when provided), and paid, free or undisclosed pricing. Paid prices
 may also remain blank (to be agreed); blank is never zero or free. Services without
@@ -46,7 +49,10 @@ encounter duration when entering an agreement. Existing bookings keep
 immutable service terms. Storage enforces whole-minute durations and integer
 price cents as well as API validation. Starts remain every 30 minutes, with a 15-minute buffer
 and São Paulo timezone. Clinical notes, payments and other timezones are not delivered.
-No real-customer rollout is claimed.
+The owner reported successful service editing with blank duration/paid amount in
+Ana's profile and successful login on 2026-10-22. This is owner-reported acceptance
+of that flow, not acceptance of every tenant/negative scenario or the new Calendar
+connection. No real-customer rollout is claimed.
 
 ## Run locally
 
@@ -98,7 +104,8 @@ merge may trigger a release and must follow a coordinated migration window.
 Migration 0002 changes booking transitions; 0003 adds identity; 0004 partitions
 professionals; 0005 adds finite agreed series; 0006 adds professional service
 catalogs and preserves original booking terms; 0007 makes catalog duration and
-paid amount optional without erasing existing data. Existing bookings become confirmed
+paid amount optional without erasing existing data; 0008 adds isolated encrypted
+Calendar connections and session-bound consent transactions. Existing bookings become confirmed
 or cancelled and belong to demo; no retroactive invitations are generated.
 Never run an older Worker against the new write contract.
 

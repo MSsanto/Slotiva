@@ -1384,3 +1384,72 @@ describe("optional service duration and paid amount", () => {
       ).toBe(422);
   });
 });
+
+describe("Calendar HTTP authorization and ownership", () => {
+  it("isolates status/disconnection and rejects master, anonymous and forged-origin operations", async () => {
+    expect((await request("/api/admin/calendar")).status).toBe(401);
+    expect(
+      (await request("/api/admin/calendar", "GET", undefined, master)).status,
+    ).toBe(403);
+    expect(
+      (await request("/api/admin/calendar/start", "POST", undefined, master))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await request("/api/admin/calendar/start", "POST", undefined, {
+          ...authA,
+          Origin: "https://evil.example",
+        })
+      ).status,
+    ).toBe(403);
+    for (const p of [a, b])
+      await db
+        .prepare(
+          "INSERT INTO calendar_connections(professional_id,subject,encrypted_refresh_token,generation) VALUES(?,?,?,?)",
+        )
+        .bind(p.id, p.slug, "encrypted-fixture", crypto.randomUUID())
+        .run();
+    const status = await request(
+      "/api/admin/calendar",
+      "GET",
+      undefined,
+      authA,
+    );
+    expect(status.status).toBe(200);
+    expect(await status.json()).toEqual(
+      expect.objectContaining({ state: "connected", enabled: false }),
+    );
+    expect(
+      (
+        await request(
+          "/api/admin/calendar/busy?date=invalid",
+          "GET",
+          undefined,
+          authA,
+        )
+      ).status,
+    ).toBe(422);
+    expect(
+      (await request("/api/admin/calendar", "DELETE", undefined, authA)).status,
+    ).toBe(204);
+    expect(
+      await db
+        .prepare("SELECT 1 FROM calendar_connections WHERE professional_id=?")
+        .bind(a.id)
+        .first(),
+    ).toBeNull();
+    expect(
+      await db
+        .prepare("SELECT 1 FROM calendar_connections WHERE professional_id=?")
+        .bind(b.id)
+        .first(),
+    ).not.toBeNull();
+    const callback = await mf.dispatchFetch(
+      base + "/api/admin/calendar/callback?state=invalid&code=fixture",
+      { headers: authA, redirect: "manual" },
+    );
+    expect(callback.status).toBe(303);
+    expect(callback.headers.get("Location")).toBe("/admin?calendar=failed");
+  });
+});

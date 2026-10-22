@@ -349,6 +349,7 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
       "/api/auth/config": { googleEnabled: true, passwordEnabled: false },
       "/api/admin/bookings": bookings,
       "/api/admin/hours": [],
+      "/api/admin/calendar": { enabled: false, state: "disconnected" },
       "/api/admin/services": [
         {
           id: "discovery",
@@ -631,4 +632,80 @@ test("empty service catalog explains unavailability and prevents new requests", 
     page.getByRole("button", { name: /Solicitar agendamento/ }),
   ).toBeDisabled();
   await expect(page.locator(".days button")).toHaveCount(0);
+});
+
+test("Calendar panel shows limited availability, connection failures and explicit disconnection (API fixtures)", async ({
+  page,
+}) => {
+  let connected = true;
+  await page.route("**/api/**", async (route) => {
+    const request = route.request(),
+      path = new URL(request.url()).pathname;
+    if (path === "/api/admin/calendar" && request.method() === "DELETE") {
+      connected = false;
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    if (request.method() !== "GET") {
+      await route.fulfill({ status: 405 });
+      return;
+    }
+    const values: Record<string, unknown> = {
+      "/api/admin/session": { role: "professional", authenticated: true },
+      "/api/auth/config": { googleEnabled: true, passwordEnabled: false },
+      "/api/admin/bookings": [],
+      "/api/admin/hours": [],
+      "/api/admin/services": [],
+      "/api/admin/profile": {
+        id: "fixture",
+        slug: "fixture",
+        displayName: "Fixture",
+        headerTitle: "Agenda",
+        headerSubtitle: "",
+        theme: "forest",
+        version: 1,
+      },
+      "/api/admin/calendar": {
+        enabled: true,
+        state: connected ? "connected" : "disconnected",
+      },
+      "/api/admin/calendar/busy": {
+        date: "2026-10-26",
+        busy: [
+          {
+            start: "2026-10-26T09:00:00-03:00",
+            end: "2026-10-26T10:00:00-03:00",
+          },
+        ],
+      },
+    };
+    await route.fulfill({ json: values[path] ?? [] });
+  });
+  await page.goto("/admin?calendar=failed");
+  const panel = page.getByRole("region", { name: "Conexão Google Agenda" });
+  await expect(panel).toContainText("Google Agenda conectada.");
+  await expect(panel.getByRole("alert")).toContainText("mesma conta do painel");
+  await expect(panel).toContainText("não criam eventos e não enviam convites");
+  await panel.getByLabel("Data para consultar no Google").fill("2026-10-26");
+  await panel
+    .getByRole("button", { name: "Consultar horários ocupados" })
+    .click();
+  await expect(panel).toContainText("26/10/2026");
+  await expect(panel).toContainText("09:00");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await panel
+    .getByRole("button", { name: "Desconectar Google Agenda", exact: true })
+    .click();
+  await expect(panel).toContainText("Google Agenda conectada.");
+  page.once("dialog", (dialog) => dialog.accept());
+  await panel
+    .getByRole("button", { name: "Desconectar Google Agenda", exact: true })
+    .click();
+  await expect(panel).toContainText("Google Agenda desconectada.");
+  await expect(
+    panel.getByRole("button", { name: "Conectar Google Agenda", exact: true }),
+  ).toBeVisible();
+  await expect(panel.getByLabel("Data para consultar no Google")).toHaveCount(
+    0,
+  );
 });

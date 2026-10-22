@@ -210,3 +210,18 @@ application revision f328632 passed [full GitHub CI](https://github.com/MSsanto/
 format, lint, build and Wrangler dry-run. Its [documentation CI](https://github.com/MSsanto/Slotiva/actions/runs/39844025192)
 also passed. This records source/CI evidence; remote migrations 0006–0007 and hosted
 owner acceptance remain pending.
+
+
+Calendar connection checks cover separate read-only scopes, PKCE exchange, signed
+identity/nonce, state replay/expiry, session/tenant substitution, denied consent,
+missing grant credentials/scopes, encryption with owner/subject binding, wrong key,
+callback/disconnect/logout races, refresh revocation, interval-only provider calls,
+provider partial/malformed errors and suspension cleanup. Bundled Worker HTTP tests
+exercise master/anonymous/origin rejection, tenant isolation, safe callback failure
+and disconnection. An API-fixture browser journey covers visible scope limitations,
+error messaging, interval rendering and disconnection confirmation. Real Google
+consent/provider permission checks remain owner acceptance, not mocked evidence.
+
+Local Calendar checks passed: 103 Worker tests across six files, the frontend test,
+production build, lint and formatting. This is source-level evidence; full browser
+CI and real Google consent are distinct verification steps.

@@ -4,6 +4,20 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Separate Google Calendar consent and manual availability
+
+- Records owner-reported successful login and blank service terms in Ana's profile.
+- Adds Google-professional-only Calendar consent, distinct from identity sign-in:
+  primary-calendar free/busy scope, PKCE, nonce, one-use session/subject-bound state
+  and signed same-account verification without invitation-binding side effects.
+- Adds AES-GCM encrypted refresh credentials with an independent secret, explicit
+  disconnect and reconnection states, suspension cleanup and in-flight race guards.
+- Adds an administrative interval-only availability lookup and panel. Provider
+  failures never report free time. No public/confirmation conflict enforcement,
+  Calendar events, invitations, email delivery or outbox consumer is claimed.
+- Adds migration 0008, regression coverage and owner setup/acceptance documentation.
+  Google console configuration, real consent and remote rollout remain pending.
+
 ## 2026-10-22 — Optional duration and paid amount
 
 - Implements the owner's correction: service duration and paid amount may be

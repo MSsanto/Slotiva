@@ -1,4 +1,11 @@
 import {
+  calendarStatus,
+  startCalendar,
+  completeCalendar,
+  disconnectCalendar,
+  calendarBusy,
+} from "./calendar";
+import {
   listServices,
   bookingService,
   saveService,
@@ -173,6 +180,10 @@ async function route(request: Request, env: Env) {
   if (path === "/api/services" && method === "GET")
     return json(await listServices(env, professionalId));
   if (path === "/api/health" && method === "GET") {
+    await env.DB.prepare("SELECT 1 FROM calendar_connections LIMIT 1").first();
+    await env.DB.prepare(
+      "SELECT 1 FROM calendar_oauth_transactions LIMIT 1",
+    ).first();
     await env.DB.prepare(
       "SELECT service_name,service_duration,service_price_mode,service_price_cents,service_version FROM bookings LIMIT 1",
     ).first();
@@ -203,6 +214,21 @@ async function route(request: Request, env: Env) {
     } catch (error) {
       return googleFailure(env, error);
     }
+  }
+  if (path === "/api/admin/calendar/callback" && method === "GET") {
+    let result = "connected";
+    try {
+      await completeCalendar(request, env, await requireAdmin(request, env));
+    } catch {
+      result = "failed";
+    }
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `/admin?calendar=${result}`,
+        "Referrer-Policy": "no-referrer",
+      },
+    });
   }
   if (path === "/api/availability" && method === "GET") {
     const parsed = availabilitySchema.safeParse(
@@ -427,6 +453,21 @@ async function route(request: Request, env: Env) {
     }
     const principal = await requireAdmin(request, env);
     professionalId = principal.professionalId!;
+    if (path === "/api/admin/calendar" && method === "GET")
+      return json(await calendarStatus(env, principal));
+    if (path === "/api/admin/calendar/start" && method === "POST")
+      return startCalendar(request, env, principal);
+    if (path === "/api/admin/calendar" && method === "DELETE") {
+      await disconnectCalendar(env, principal);
+      return noContent();
+    }
+    if (path === "/api/admin/calendar/busy" && method === "GET") {
+      const data = moveSchema
+        .pick({ date: true })
+        .safeParse(Object.fromEntries(url.searchParams));
+      if (!data.success) throw new HttpError(422, "Confira a data.");
+      return json(await calendarBusy(env, principal, data.data.date));
+    }
     if (path === "/api/admin/series" && method === "POST")
       return json(
         await createSeries(env, principal, await read(request, seriesSchema)),

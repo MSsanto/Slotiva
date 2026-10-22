@@ -224,3 +224,25 @@ triggers release occupancy and record transitions/outbox. Repeated requests retu
 204 without new booking versions or repeated transition events. Series status
 remains active while any future confirmed encounter remains, otherwise cancelled.
 No migration or automatic restoration of previously cancelled appointments occurs.
+
+
+## Separate Google Calendar connection (manual availability only)
+
+All routes require an active Google professional session; master/demo credentials
+cannot access them. Mutations require the exact Origin. Scope is server-selected
+primary calendar of that same account; no caller-supplied owner/calendar IDs.
+
+| Method and route | Contract |
+| --- | --- |
+| GET /api/admin/calendar | `{enabled,state,connectedAt,mode:"availability_only"}`; state disconnected, connected or reconnect_required; no credentials |
+| POST /api/admin/calendar/start | 303 to separate Google read-only consent; session-bound ten-minute state + PKCE + nonce; disabled configuration returns 503 |
+| GET /api/admin/calendar/callback | One-use exchange and signed identity match; redirects to /admin?calendar=connected or failed; never provider details |
+| DELETE /api/admin/calendar | 204; deletes own local credentials and pending consent; does not revoke Google's shared grant |
+| GET /api/admin/calendar/busy?date=YYYY-MM-DD | Today through +14 days; `{date,timezone,busy:[{start,end}]}`; intervals only from primary calendar |
+
+Invalid dates are 422; absent/revoked connection is 409; provider/key failures are
+503 and never imply free time. Invalid refresh grants mark reconnect_required.
+Suspension/removal/identity change deletes credentials. Public availability,
+approval and agreed-series creation do not yet consult this external data.
+There is no Calendar event/invite endpoint or outbox delivery in this increment.
+See [ADR 011](CALENDAR_CONNECTION.md) for encryption, races, setup and limitations.

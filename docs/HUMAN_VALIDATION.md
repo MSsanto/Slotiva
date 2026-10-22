@@ -6,6 +6,26 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Latest owner evidence and next increment — 2026-10-22
+
+After updating to be1a028, the owner supplied a successful Preview upload and
+health response status=ok/storage=D1/approvalWorkflow=true. A subsequent direct
+agent browser check on /p/anafukudaadvogada loaded the profile, default services
+and October 26 availability. The owner then reported successful login and service
+editing with duration/paid amount blank in Ana's profile. These checks close those
+specific acceptance items; they do not establish all negative authorization,
+concurrent edits or every professional's full workflow. Raw secrets/customer data
+are not recorded. Migration completion output was not supplied separately; healthy
+runtime/working service behavior is distinct from a complete migration audit.
+
+The next implementation adds separate read-only Calendar consent and manual
+primary-calendar availability. Apply migration 0008 to the same isolated D1 and
+follow [Calendar setup and acceptance](CALENDAR_CONNECTION.md). New secret
+CALENDAR_TOKEN_KEY and Google console consent/callback configuration require the
+owner's account access. The agent has not configured these settings, requested a
+real grant, migrated remotely or deployed this increment. Event creation,
+external conflict enforcement, invitations and transactional email remain pending.
+
 ## Editable services — migration 0006
 
 Implementation adds a tenant-owned service editor in /admin, dynamic public cards,

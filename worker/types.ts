@@ -8,6 +8,7 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   MASTER_GOOGLE_SUBS?: string;
+  CALENDAR_TOKEN_KEY?: string;
 }
 export interface BookingRow {
   id: string;

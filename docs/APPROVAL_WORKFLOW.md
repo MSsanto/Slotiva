@@ -6,7 +6,9 @@ This workflow was introduced in 0.4.0 and remains the public-request contract in
 0.5.0. Professional Google identity, master lifecycle administration, individual
 pages and finite professional-entered agreements are now implemented separately;
 see [ADR 008](GOOGLE_AUTH.md) and [ADR 009](TENANCY_AND_RECURRENCE.md).
-Calendar, transactional email and customer email recovery remain pending. Demo
+Calendar event synchronization, transactional email and customer email recovery
+remain pending. Separate read-only Calendar consent/manual availability is
+implemented in [ADR 011](CALENDAR_CONNECTION.md); approval does not consume it yet. Demo
 password access is isolated; hosted product environments require Google.
 
 Public requests require at least 48 elapsed hours of notice. Creation stores

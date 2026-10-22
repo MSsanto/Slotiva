@@ -175,7 +175,7 @@ export async function startGoogleLogin(request: Request, env: Env) {
   });
 }
 
-export async function verifyGoogleIdentity(
+export async function verifyGoogleClaims(
   token: string,
   env: Env,
   nonce: string,
@@ -199,7 +199,7 @@ export async function verifyGoogleIdentity(
         payload.azp !== env.GOOGLE_CLIENT_ID)
     )
       throw new Error("Invalid identity");
-    return await authorizeGoogleAccount(env, { ...payload, sub: payload.sub });
+    return { ...payload, sub: payload.sub };
   } catch (error) {
     if (error instanceof HttpError) throw error;
     throw new HttpError(
@@ -207,6 +207,18 @@ export async function verifyGoogleIdentity(
       "Não foi possível validar o acesso Google. Tente novamente.",
     );
   }
+}
+
+export async function verifyGoogleIdentity(
+  token: string,
+  env: Env,
+  nonce: string,
+  keys: JWTVerifyGetKey = googleKeys,
+) {
+  return authorizeGoogleAccount(
+    env,
+    await verifyGoogleClaims(token, env, nonce, keys),
+  );
 }
 
 // Dependency injection is used by offline tests only, never selected through HTTP or env values.

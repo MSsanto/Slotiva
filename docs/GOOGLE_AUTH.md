@@ -106,3 +106,10 @@ state/browser binding and one-use callback. No credentials, verification rules,
 endpoints or account permissions change.
 
 Reference: [workerd receiver requirements](https://github.com/cloudflare/workerd/issues/6904).
+
+
+Calendar authorization is now a separate professional-only consent flow described
+in [ADR 011](CALENDAR_CONNECTION.md). Identity sign-in keeps its original scopes.
+The shared JWT claim verifier performs cryptographic validation without binding
+invitations during Calendar consent; its result must match the active professional.
+Earlier instructions not to request Calendar scopes apply to the identity flow.

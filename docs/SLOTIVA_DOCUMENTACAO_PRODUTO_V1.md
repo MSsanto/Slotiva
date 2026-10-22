@@ -17,15 +17,15 @@ Do not present a specification, passing tests or successful upload as live readi
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | Master administration                | Required; implemented Google master role creates, suspends, removes professionals                               |
 | Professional page                    | Required; implemented stable /p/{slug}, name, header/subtitle/theme                                             |
-| Professional identity                | Google required; code and synthetic-token tests implemented; real OAuth validation pending                      |
+| Professional identity                | Google required; code and synthetic-token tests implemented; owner reports successful real sign-in; remaining negative checks pending                      |
 | Tenant isolation                     | Required; implemented session/slug ownership and tenant-scoped occupancy/hours                                  |
 | Customer signup                      | No account/password required; current one-booking capability is memory-only                                     |
 | Customer recovery                    | Temporary email links required; not implemented                                                                 |
 | Public confirmation                  | Professional approval required; implemented pending requests, >=48h notice, 24h decision window                 |
 | Internal agreements                  | Professional enters already agreed time; implemented single/weekly/fortnightly finite series                    |
-| Google Calendar                      | Create events and consider external busy time; not implemented                                                  |
+| Google Calendar                      | Separate read-only consent/manual primary freebusy implemented; hosted setup pending; event sync/automatic conflict enforcement not implemented                                                  |
 | Customer invite                      | Only after explicit approval and successful Calendar creation; not implemented                                  |
-| Services                             | Implemented: tenant-owned names/descriptions, optional 15–240 minute durations, optional paid amounts/free/hidden prices and deactivation; hosted acceptance pending |
+| Services                             | Implemented: tenant-owned names/descriptions, optional 15–240 minute durations, optional paid amounts/free/hidden prices and deactivation; owner validated blank terms in Ana's profile; broader checks pending |
 | Clinical records, payments, WhatsApp | Outside initial scope                                                                                           |
 | Deployment                           | Workers/D1 implemented; this increment is a PR, not a production release                                        |
 
@@ -96,7 +96,11 @@ guardians and shared addresses require explicit resolution. Conflicting matches
 never cause automatic merge. Current booking-level name/email fields do not yet
 implement this client/contact model or phone collection.
 
-## ADR 004 — Calendar and source of truth (pending)
+## ADR 004 — Calendar and source of truth (partially implemented)
+
+[ADR 011](CALENDAR_CONNECTION.md) implements separate consent, encrypted refresh
+credentials and a manual primary-calendar interval lookup. External setup/acceptance
+remain pending; event synchronization and conflict enforcement below are targets.
 
 Slotiva is authoritative for reservations and business rules. Google provides
 calendar presentation and external busy-time data, not a cross-system atomic

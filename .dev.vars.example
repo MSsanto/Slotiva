@@ -8,3 +8,6 @@ ADMIN_PASSWORD_HASH=
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
 # MASTER_GOOGLE_SUBS=
+
+# Separate read-only Calendar consent (32 random bytes, standard base64).
+# CALENDAR_TOKEN_KEY=

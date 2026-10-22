@@ -42,7 +42,9 @@ actor and finite weekly/fortnightly occurrences. Public requests still require
 48-hour notice and explicit approval within 24 hours. Do not weaken public rules
 to support professional scheduling. Keep series creation atomic and retries safe.
 
-Calendar, transactional delivery and client access recovery remain pending.
+Separate read-only Calendar consent/manual availability is implemented; hosted
+setup remains pending. Calendar event synchronization, transactional delivery and
+client access recovery remain pending.
 The pilot checklist is mandatory before inviting real customers. Never migrate
 the older Preview database while an incompatible Worker can still write to it.
 Follow docs/HUMAN_VALIDATION.md.
