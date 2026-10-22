@@ -4,6 +4,20 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Optional duration and paid amount
+
+- Implements the owner's correction: service duration and paid amount may be
+  omitted or null. Blank means to be agreed, never zero or free. Public cards and
+  administrative lists display the distinction; service forms have no defaults
+  or required attributes for these fields.
+- Services without fixed duration remain visible and direct the customer to the
+  professional. No public time is advertised or occupied with an invented length.
+  Professional entry accepts an explicit duration for that encounter/series,
+  preserving concrete occupancy and immutable booking terms.
+- Adds migration 0007 after the published 0006, preserving existing catalog,
+  bookings and dependent rows. Adds Worker/browser and populated-upgrade coverage;
+  remote migration and hosted acceptance remain pending.
+
 ## 2026-10-22 — Editable professional service catalogs
 
 - Adds per-professional service creation, editing and deactivation: names,

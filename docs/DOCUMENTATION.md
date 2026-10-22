@@ -193,6 +193,16 @@ it also audits the open editor with axe. Local browser execution is unavailable
 because the Playwright Chromium download did not install; GitHub CI is the browser
 verification source. Remote migration and owner acceptance are separate checks.
 
-Local service-catalog checks passed: 87 Worker tests, one frontend test, production
+Local service-catalog checks passed: 89 Worker tests, one frontend test, production
 build, lint and formatting. The build reports a client chunk just above 500 kB;
 this is a performance warning, not a failed compilation.
+
+
+Optional-term regressions verify omitted/null catalog duration and paid amount,
+public no-duration refusal without occupancy, explicit per-agreement duration,
+null paid-price snapshots and invalid fixed-duration overrides. The migration
+upgrade also compares custom v6 services/bookings and catalog edits across 0007.
+The browser journey now saves both fields blank, verifies to-agree labels and no
+public slots, and enters a professional agreement with its own duration. These
+new cases supersede the first catalog contract's mandatory fields. Prior catalog
+revision 735fcfe passed full GitHub CI; the optional-term revision needs its own CI.

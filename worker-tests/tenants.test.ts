@@ -999,7 +999,6 @@ describe("professional service catalog and immutable booking terms", () => {
       { duration: 245 },
       { priceCents: 0 },
       { priceCents: 1.5 },
-      { priceCents: null },
       { priceMode: "free", priceCents: 1 },
       { priceMode: "hidden", priceCents: 0 },
       { name: " " },
@@ -1266,5 +1265,122 @@ describe("catalog absence and closed working days", () => {
     expect(
       await (await request(`/api/public/${a.slug}/services`)).json(),
     ).toEqual([]);
+  });
+});
+
+describe("optional service duration and paid amount", () => {
+  it("persists omitted terms, distinguishes paid-to-agree from free, and avoids public occupancy without a duration", async () => {
+    const { duration: _duration, priceCents: _price, ...input } = serviceData();
+    const response = await request("/api/admin/services", "POST", input, authA);
+    expect(response.status).toBe(201);
+    const service = (await response.json()) as { id: string; version: number };
+    expect(service).toMatchObject({
+      duration: null,
+      price: null,
+      priceMode: "paid",
+    });
+    const availability = await request(
+      `/api/public/${a.slug}/availability?date=${date()}&serviceId=${service.id}`,
+    );
+    expect(availability.status).toBe(200);
+    expect(await availability.json()).toEqual([]);
+    const publicRequest = await request(
+      `/api/public/${a.slug}/bookings`,
+      "POST",
+      { ...payload(), serviceId: service.id, email: "fixture@example.com" },
+    );
+    expect(publicRequest.status).toBe(422);
+    expect(
+      (
+        await request(
+          "/api/admin/series",
+          "POST",
+          series({ serviceId: service.id }),
+          authA,
+        )
+      ).status,
+    ).toBe(422);
+    const before = await db
+      .prepare("SELECT count(*) n FROM occupied_slots WHERE professional_id=?")
+      .bind(a.id)
+      .first<{ n: number }>();
+    expect(before!.n).toBe(0);
+    const r = await request(
+      "/api/admin/series",
+      "POST",
+      series({ serviceId: service.id, duration: 50 }),
+      authA,
+    );
+    expect(r.status).toBe(201);
+    const result = (await r.json()) as {
+      bookings: {
+        serviceDuration: number;
+        servicePrice: null;
+        servicePriceMode: string;
+      }[];
+    };
+    expect(result.bookings).toHaveLength(4);
+    for (const booking of result.bookings)
+      expect(booking).toMatchObject({
+        serviceDuration: 50,
+        servicePrice: null,
+        servicePriceMode: "paid",
+      });
+  });
+  it("allows public bookings with known duration and no paid amount, preserves them across edits, and validates manual overrides", async () => {
+    const s = await newService({ priceCents: null });
+    const response = await request(`/api/public/${a.slug}/bookings`, "POST", {
+      ...payload(),
+      serviceId: s.id,
+      email: "fixture@example.com",
+    });
+    expect(response.status).toBe(201);
+    const receipt = (await response.json()) as {
+      id: string;
+      cancelToken: string;
+    };
+    expect(receipt).toMatchObject({
+      serviceDuration: 50,
+      servicePrice: null,
+      servicePriceMode: "paid",
+    });
+    expect(
+      (
+        await request(
+          "/api/admin/series",
+          "POST",
+          series({ serviceId: s.id, duration: 30 }),
+          authA,
+        )
+      ).status,
+    ).toBe(422);
+    await request(
+      `/api/admin/services/${s.id}`,
+      "PUT",
+      serviceData({ version: 1, duration: null, priceCents: 20000 }),
+      authA,
+    );
+    const stored = await request(
+      `/api/bookings/${receipt.id}`,
+      "GET",
+      undefined,
+      { "X-Cancel-Token": receipt.cancelToken },
+    );
+    expect(await stored.json()).toMatchObject({
+      serviceDuration: 50,
+      servicePrice: null,
+      servicePriceMode: "paid",
+    });
+    for (const duration of [null, 0, 50.2, 51, 245])
+      expect(
+        (
+          await request(
+            "/api/admin/series",
+            "POST",
+            series({ serviceId: s.id, serviceVersion: 2, duration }),
+            authA,
+          )
+        ).status,
+      ).toBe(422);
   });
 });

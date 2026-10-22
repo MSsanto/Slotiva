@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, errorMessage, type Service } from "../api";
+import { api, errorMessage, serviceDurationLabel, type Service } from "../api";
 export default function AgreedBookings() {
   const client = useQueryClient();
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -10,6 +10,10 @@ export default function AgreedBookings() {
     queryKey: ["admin", "services"],
     queryFn: () => api<Service[]>("/admin/services"),
   });
+  const [selectedId, setSelectedId] = useState("");
+  const activeServices = services.data?.filter((s) => s.active) ?? [];
+  const service =
+    activeServices.find((s) => s.id === selectedId) ?? activeServices[0];
   const save = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
       api<{ bookings: unknown[] }>("/admin/series", {
@@ -42,6 +46,9 @@ export default function AgreedBookings() {
           serviceVersion: services.data?.find(
             (s) => s.id === data.get("serviceId"),
           )?.version,
+          ...(service?.duration === null
+            ? { duration: Number(data.get("duration")) }
+            : {}),
           date: String(data.get("date")),
           time: String(data.get("time")),
           frequency,
@@ -70,16 +77,38 @@ export default function AgreedBookings() {
       </label>
       <label>
         Tipo de encontro
-        <select name="serviceId" required>
+        <select
+          name="serviceId"
+          required
+          value={service?.id ?? ""}
+          onChange={(e) => setSelectedId(e.target.value)}
+        >
           {services.data
             ?.filter((s) => s.active)
             .map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name} · {s.duration} min
+                {s.name} · {serviceDurationLabel(s.duration)}
               </option>
             ))}
         </select>
       </label>
+      {service?.duration === null && (
+        <label>
+          Duração deste encontro (minutos)
+          <input
+            name="duration"
+            type="number"
+            min={15}
+            max={240}
+            step={5}
+            required
+          />
+          <small>
+            Como o serviço não tem duração fixa, informe o tempo combinado para
+            este encontro ou série.
+          </small>
+        </label>
+      )}
       <div className="fields">
         <label>
           Primeira data

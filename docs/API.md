@@ -37,13 +37,22 @@ POST `/api/admin/services` creates a service with
 `{name,description,duration,priceMode,priceCents,active}`. PUT
 `/api/admin/services/{id}` requires the same fields plus the current `version`.
 Names are trimmed, 1–100 characters; descriptions at most 500. Duration is an
-integer from 15 to 240 minutes, divisible by 5. `priceMode` is `free` (cents=0),
-`paid` (integer cents 1–99999999) or `hidden` (cents=null). Public `price` is BRL
+optional (null/omitted), or an integer from 15 to 240 minutes, divisible by 5.
+`priceMode` is `free` (cents=0), `paid` (null/omitted to agree later, or integer
+cents 1–99999999) or `hidden` (cents=null). Public `price` is BRL
 major units or null; hidden means omit price text, not display "free". There is no
 payment processing. SQL type checks also reject fractional durations or cents,
-including direct database writes. Active is a boolean. Inputs are strict and owner IDs are not
+including direct database writes. Blank paid amounts display "Valor a combinar";
+blank durations display "Duração a combinar". Active is a boolean. Inputs are strict and owner IDs are not
 accepted. Create returns 201; edit returns 200 and increments version. Stale or
 inaccessible edits return 409. Master credentials cannot use these routes.
+
+A service with no duration remains publishable, but cannot generate public time
+slots or occupy the agenda without an agreed length. Public availability returns
+[] and public POST returns 422 with an instruction to arrange directly. The UI
+shows that instruction and disables self-scheduling. A professional can enter an
+agreement with a concrete per-encounter duration; see below. No default duration
+or free price is silently substituted.
 
 New public and professional bookings require the displayed serviceVersion. Stale
 versions return 409; inactive/foreign/missing services return 404. A database
@@ -134,6 +143,12 @@ Requires the professional role. Every route below derives tenant from the sessio
 | DELETE /api/admin/series/{uuid}?fromBookingId={uuid} | Compatibility: cancel selected/later future encounters; preserve earlier; 204 |
 
 Series input: `{requestId,serviceId,serviceVersion,date,time,name,email,frequency,count}`.
+For a service with null duration, input also requires `duration` (integer 15–240,
+divisible by 5) for this encounter or every occurrence in this finite series.
+For a fixed-duration service, a duration override is rejected (422). Catalog duration
+remains null; each created booking snapshots the actual agreed duration. Paid
+amount may remain null in both public and professional booking snapshots.
+
 requestId is a caller-generated UUID for deduplication; frequency is once, weekly
 or fortnightly; count 1–26 (once requires 1). Email may be empty. Starts are in
 the future, within 366 calendar days; same local HH:mm every 7 or 14 days. The

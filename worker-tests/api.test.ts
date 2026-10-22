@@ -749,6 +749,38 @@ describe("migration and scheduled expiry", () => {
         .prepare("SELECT count(*) AS n FROM notification_outbox")
         .first<{ n: number }>())!.n,
     ).toBe(1);
+    // Upgrade a populated v6 catalog, including terms already edited since booking.
+    await legacy.exec(
+      "UPDATE professional_services SET name='Edited catalog',version=version+1 WHERE professional_id='demo' AND id='consulting'",
+    );
+    await legacy.exec(
+      "INSERT INTO professional_services(professional_id,id,name,description,duration_minutes,price_mode,price_cents) VALUES('demo','custom-50','Custom session','Fixture',50,'paid',17550)",
+    );
+    await legacy
+      .prepare(
+        `INSERT INTO bookings(id,professional_id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version)
+      SELECT 'custom-legacy','demo',id,?,0,9999999999,840,890,905,'Fixture','fixture@example.com','custom-hash',unixepoch()+86400,name,description,duration_minutes,price_mode,price_cents,version FROM professional_services WHERE professional_id='demo' AND id='custom-50'`,
+      )
+      .bind(day())
+      .run();
+    const upgradedTables = [...tables, "professional_services"];
+    const before7 = await Promise.all(
+      upgradedTables.map((t) =>
+        legacy.prepare(`SELECT * FROM ${t} ORDER BY 1,2`).all(),
+      ),
+    );
+    await apply("migrations/0007_optional_service_terms.sql");
+    for (let i = 0; i < upgradedTables.length; i++)
+      expect(
+        (
+          await legacy
+            .prepare(`SELECT * FROM ${upgradedTables[i]} ORDER BY 1,2`)
+            .all()
+        ).results,
+      ).toEqual(before7[i].results);
+    expect(
+      (await legacy.prepare("PRAGMA foreign_key_check").all()).results,
+    ).toEqual([]);
   });
   it("expires without an HTTP request and remains safe on repeated scheduled execution", async () => {
     const { id } = await expiredFixture(-1);

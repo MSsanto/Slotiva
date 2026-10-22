@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   api,
   servicePriceLabel,
+  serviceDurationLabel,
   errorMessage,
   formatDate,
   formatDeadline,
@@ -84,7 +85,8 @@ export default function BookingPage() {
           ? { headers: { "X-Cancel-Token": confirmed.cancelToken } }
           : {},
       ),
-    enabled: !!date && (!!service || rescheduling),
+    enabled:
+      !!date && ((!!service && service.duration !== null) || rescheduling),
   });
   const receiptState = useQuery({
     queryKey: ["receipt", confirmed?.id],
@@ -381,7 +383,12 @@ export default function BookingPage() {
           <p className="role">Atendimento com hora marcada</p>
           <p>{profile.data?.headerSubtitle}</p>
           <div className="profile-details">
-            <span>◷ &nbsp; {service?.duration} minutos</span>
+            <span>
+              ◷ &nbsp;{" "}
+              {service
+                ? serviceDurationLabel(service.duration)
+                : "Duração a combinar"}
+            </span>
             <span>↗ &nbsp; Atendimento on-line</span>
             <span>◎ &nbsp; Horário de Brasília</span>
           </div>
@@ -422,7 +429,7 @@ export default function BookingPage() {
                   <span>
                     <strong>{s.name}</strong>
                     <small>
-                      {s.duration} min
+                      {serviceDurationLabel(s.duration)}
                       {servicePriceLabel(s.priceMode, s.price) &&
                         ` · ${servicePriceLabel(s.priceMode, s.price)}`}
                     </small>
@@ -438,7 +445,13 @@ export default function BookingPage() {
               profissional.
             </p>
           )}
-          {service && schedule()}
+          {service?.duration === null && (
+            <p role="status">
+              Duração a combinar. Combine a duração e o horário diretamente com
+              o profissional.
+            </p>
+          )}
+          {service && service.duration !== null && schedule()}
           <form
             noValidate
             onSubmit={handleSubmit((contact) => {
@@ -507,6 +520,7 @@ export default function BookingPage() {
                 disabled={
                   booking.isPending ||
                   !service ||
+                  service.duration === null ||
                   !date ||
                   !time ||
                   slots.isFetching

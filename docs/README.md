@@ -24,6 +24,6 @@ and finite professional-led recurrence. Email delivery, recovery and Google
 Calendar remain pending. The owner reported successful remote migrations 0001–0005
 on the dedicated homologation D1 on 2026-10-21 and then confirmed hosted API
 health and disabled Google/password login from the notebook. The owner subsequently reported successful real Google sign-in, professional
-creation and approval/cancellation checks. Service editing and migration 0006 are
+creation and approval/cancellation checks. Service editing and migrations 0006–0007 are
 implemented and locally tested; their remote application and hosted acceptance
 remain pending. No production release is established.

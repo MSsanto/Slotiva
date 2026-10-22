@@ -7,6 +7,7 @@ export const seriesSchema = bookingSchema
   .extend({
     email: z.union([z.email().max(200), z.literal("")]),
     requestId: z.uuid(),
+    duration: z.number().int().min(15).max(240).multipleOf(5).optional(),
     frequency: z.enum(["once", "weekly", "fortnightly"]),
     count: z.number().int().min(1).max(26),
   })
@@ -52,6 +53,17 @@ export async function createSeries(
     data.serviceId,
     data.serviceVersion,
   );
+  if (service.duration_minutes !== null && data.duration !== undefined)
+    throw new HttpError(
+      422,
+      "Este serviço já tem duração definida. Atualize o serviço para alterá-la.",
+    );
+  const duration = service.duration_minutes ?? data.duration;
+  if (duration === undefined)
+    throw new HttpError(
+      422,
+      "Informe a duração deste encontro para reservar o horário.",
+    );
   const step =
     data.frequency === "fortnightly" ? 14 : data.frequency === "weekly" ? 7 : 0;
   const occurrences = Array.from({ length: data.count }, (_, i) => {
@@ -60,7 +72,7 @@ export async function createSeries(
     const key = date.toISOString().slice(0, 10);
     return {
       date: key,
-      ...window(key, data.time, service.duration_minutes, true),
+      ...window(key, data.time, duration, true),
     };
   });
   const id = crypto.randomUUID();
@@ -98,7 +110,7 @@ export async function createSeries(
         id,
         service.name,
         service.description,
-        service.duration_minutes,
+        duration,
         service.price_mode,
         service.price_cents,
         service.version,

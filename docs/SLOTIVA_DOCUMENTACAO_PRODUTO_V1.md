@@ -25,7 +25,7 @@ Do not present a specification, passing tests or successful upload as live readi
 | Internal agreements                  | Professional enters already agreed time; implemented single/weekly/fortnightly finite series                    |
 | Google Calendar                      | Create events and consider external busy time; not implemented                                                  |
 | Customer invite                      | Only after explicit approval and successful Calendar creation; not implemented                                  |
-| Services                             | Implemented: tenant-owned names/descriptions, 15–240 minute durations, paid/free/hidden prices and deactivation; hosted acceptance pending |
+| Services                             | Implemented: tenant-owned names/descriptions, optional 15–240 minute durations, optional paid amounts/free/hidden prices and deactivation; hosted acceptance pending |
 | Clinical records, payments, WhatsApp | Outside initial scope                                                                                           |
 | Deployment                           | Workers/D1 implemented; this increment is a PR, not a production release                                        |
 
@@ -56,7 +56,7 @@ The current memory token is an interim capability, not that recovered access.
 | ---- | ----------------------------------------------------------------------------------------------- |
 | RF01 | Forged/expired/wrong-audience Google tokens cannot authorize access                             |
 | RF02 | A cannot read/change B's appointments, hours, branding or series by changing IDs                |
-| RF03 | Implemented: per-professional service configuration with immutable booking terms; migration 0006 and hosted acceptance pending |
+| RF03 | Implemented: per-professional service configuration with immutable booking terms; migrations 0006–0007 and hosted acceptance pending |
 | RF04 | Availability respects tenant, local time, hours, duration, buffers and blocks                   |
 | RF05 | Public creation is pending, >=48 elapsed hours ahead; approval expires at 24 elapsed hours      |
 | RF06 | Concurrent overlapping writes produce at most one active internal reservation per professional  |
@@ -130,7 +130,7 @@ an option if future external-sync requirements justify it. Do not replace a prov
 constraint with a read-then-write availability check. Half-open appointment windows
 plus the configured buffer determine occupied intervals. Rescheduling must keep
 the original interval if the replacement fails. The tenant service catalog with immutable booking terms
-is constrained in SQL; migration 0006 implements variable durations and requires
+is constrained in SQL; migrations 0006–0007 implement variable/optional catalog durations and requires
 a coordinated schema/code release.
 
 Target entities beyond implemented profiles/sessions/bookings/hours/series/outbox:

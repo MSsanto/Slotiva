@@ -15,11 +15,13 @@ professional can rename/edit them, create additional services or deactivate them
 There is no hard-delete endpoint. Master manages professionals, not their catalog.
 
 Fields are name, description, duration, price mode/cents, active state, version,
-position and last_actor. Duration allows 15–240 minutes in increments of 5, including
-50-minute sessions. Price modes distinguish paid (positive integer BRL cents),
+position and last_actor. Duration may be null/omitted, or 15–240 minutes in increments of 5, including
+50-minute sessions. Price modes distinguish paid (positive integer BRL cents or
+null/omitted for an amount to agree),
 free (zero) and hidden (null). Public output converts cents to BRL for display;
 price processing/collection is not implemented. Starts remain every 30 minutes,
-with a fixed 15-minute buffer. Duration editing does not change those separate
+with a fixed 15-minute buffer. Unspecified values are never replaced by zero,
+free pricing or an invented duration. Duration editing does not change those separate
 scheduling policies.
 
 ## Booking contract and races
@@ -30,7 +32,13 @@ creation. Service edits never rewrite these snapshots or existing occupied time.
 Receipts and the professional agenda read snapshots. Pending request moves use
 the original duration, including capability-protected availability after service
 deactivation. Confirmed rescheduling keeps its existing contact-the-professional
-rule. New agreements require an active service of the current tenant.
+rule. New agreements require an active service of the current tenant. A service with no
+fixed duration remains visible as "Duração a combinar"; paid with no amount shows
+"Valor a combinar". Public self-scheduling is unavailable for unknown duration:
+the page instructs direct arrangement. In professional entry, a concrete duration
+is required for that encounter/series so occupancy remains accurate. This value
+is snapshotted without filling the catalog duration. A fixed-duration service
+cannot be overridden through the booking payload.
 
 Edits use optimistic versions. Public requests and professional agreements include
 serviceVersion; stale clients receive 409. INSERT triggers recheck the current
@@ -39,6 +47,16 @@ silently accept changed terms. Snapshot updates are rejected by a separate guard
 Series creation loads one version and creates every occurrence in one atomic
 batch. A conflict rolls back the series, occupancy, events and outbox. Identical
 requestId retries return the original result even after service editing.
+
+## Optional terms revision
+
+The owner explicitly corrected the initial mandatory duration/paid-amount contract.
+Migration 0007 follows the already published 0006 without editing its history. It
+makes catalog duration and paid price nullable, keeps concrete booking durations,
+and permits a professional-entered duration only for services without a fixed one.
+It rebuilds catalog/bookings checks while preserving all catalog, booking, occupancy,
+series, audit and outbox rows. A populated upgrade also includes custom catalog
+entries and a catalog renamed after an earlier booking, not only seeded defaults.
 
 ## Migration and release
 

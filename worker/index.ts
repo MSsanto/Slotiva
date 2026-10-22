@@ -212,6 +212,8 @@ async function route(request: Request, env: Env) {
       throw new HttpError(422, "Confira a data e o serviço.");
     const args = parsed.data;
     const service = await bookingService(env, professionalId, args.serviceId);
+    window(args.date, "09:00", service.duration_minutes ?? 15);
+    if (service.duration_minutes === null) return json([]);
     return json(
       await available(env, professionalId, args.date, service.duration_minutes),
     );
@@ -224,6 +226,11 @@ async function route(request: Request, env: Env) {
       data.serviceId,
       data.serviceVersion,
     );
+    if (service.duration_minutes === null)
+      throw new HttpError(
+        422,
+        "Combine a duração e o horário diretamente com o profissional.",
+      );
     const w = window(data.date, data.time, service.duration_minutes),
       id = crypto.randomUUID(),
       secret = randomToken();

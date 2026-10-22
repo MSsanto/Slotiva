@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, errorMessage, servicePriceLabel, type Service } from "../api";
+import {
+  api,
+  errorMessage,
+  servicePriceLabel,
+  serviceDurationLabel,
+  type Service,
+} from "../api";
 function ServiceForm({
   service,
   done,
@@ -36,18 +42,21 @@ function ServiceForm({
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        const amount = Number(f.get("price"));
+        const amount = String(f.get("price") ?? "").trim();
+        const duration = String(f.get("duration") ?? "").trim();
         save.mutate({
           name: String(f.get("name")),
           description: String(f.get("description")),
-          duration: Number(f.get("duration")),
+          duration: duration === "" ? null : Number(duration),
           priceMode: mode,
           priceCents:
             mode === "hidden"
               ? null
               : mode === "free"
                 ? 0
-                : Math.round(amount * 100),
+                : amount === ""
+                  ? null
+                  : Math.round(Number(amount) * 100),
           active: f.get("active") === "on",
           ...(service ? { version: service.version } : {}),
         });
@@ -74,15 +83,14 @@ function ServiceForm({
       </label>
       <div className="fields">
         <label>
-          Duração (minutos)
+          Duração (minutos, opcional)
           <input
             name="duration"
             type="number"
             min={15}
             max={240}
             step={5}
-            defaultValue={service?.duration ?? 50}
-            required
+            defaultValue={service?.duration ?? ""}
           />
         </label>
         <label>
@@ -93,20 +101,21 @@ function ServiceForm({
           >
             <option value="hidden">Não divulgar valor</option>
             <option value="free">Gratuito</option>
-            <option value="paid">Informar valor</option>
+            <option value="paid">Pago · valor opcional</option>
           </select>
         </label>
         {mode === "paid" && (
           <label>
-            Valor (R$)
+            Valor (R$, opcional)
             <input
               name="price"
               type="number"
               min={0.01}
               max={999999.99}
               step={0.01}
-              defaultValue={service?.price ?? undefined}
-              required
+              defaultValue={
+                service?.priceMode === "paid" ? (service.price ?? "") : ""
+              }
             />
           </label>
         )}
@@ -122,7 +131,9 @@ function ServiceForm({
       <p className="hint">
         A alteração vale para novos agendamentos. Reservas existentes mantêm o
         serviço, a duração e o valor originais. O intervalo entre atendimentos
-        continua em 15 minutos.
+        continua em 15 minutos. Duração e valor podem ficar em branco para
+        combinar depois. Sem duração definida, combine o horário diretamente e
+        informe o tempo ao cadastrar o encontro.
       </p>
       {save.isError && (
         <p role="alert">
@@ -169,7 +180,7 @@ export default function ServiceSettings() {
       {services.data?.map((s) => (
         <div key={s.id} className="service-setting">
           <p>
-            <strong>{s.name}</strong> · {s.duration} min
+            <strong>{s.name}</strong> · {serviceDurationLabel(s.duration)}
             {servicePriceLabel(s.priceMode, s.price) &&
               ` · ${servicePriceLabel(s.priceMode, s.price)}`}{" "}
             · {s.active ? "Ativo" : "Desativado"}

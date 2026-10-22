@@ -5,7 +5,7 @@ export type ServiceRow = {
   professional_id: string;
   name: string;
   description: string;
-  duration_minutes: number;
+  duration_minutes: number | null;
   price_mode: "free" | "paid" | "hidden";
   price_cents: number | null;
   active: number;
@@ -14,9 +14,24 @@ export type ServiceRow = {
 const fields = {
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500),
-  duration: z.number().int().min(15).max(240).multipleOf(5),
+  duration: z
+    .number()
+    .int()
+    .min(15)
+    .max(240)
+    .multipleOf(5)
+    .nullable()
+    .optional()
+    .default(null),
   priceMode: z.enum(["free", "paid", "hidden"]),
-  priceCents: z.number().int().min(0).max(99999999).nullable(),
+  priceCents: z
+    .number()
+    .int()
+    .min(0)
+    .max(99999999)
+    .nullable()
+    .optional()
+    .default(null),
   active: z.boolean(),
 };
 const priceValid = (d: { priceMode: string; priceCents: number | null }) =>
@@ -24,7 +39,7 @@ const priceValid = (d: { priceMode: string; priceCents: number | null }) =>
     ? d.priceCents === 0
     : d.priceMode === "hidden"
       ? d.priceCents === null
-      : d.priceCents !== null && d.priceCents > 0;
+      : d.priceCents === null || d.priceCents > 0;
 export const createServiceSchema = z.object(fields).strict().refine(priceValid);
 export const editServiceSchema = z
   .object({ ...fields, version: z.number().int().positive() })

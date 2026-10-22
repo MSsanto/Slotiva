@@ -2,7 +2,7 @@ export type Service = {
   id: string;
   name: string;
   description: string;
-  duration: number;
+  duration: number | null;
   price: number | null;
   priceMode: "free" | "paid" | "hidden";
   version: number;
@@ -124,7 +124,12 @@ export const servicePriceLabel = (
     ? ""
     : mode === "free"
       ? "Gratuito"
-      : new Intl.NumberFormat("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        }).format(price ?? 0);
+      : price === null
+        ? "Valor a combinar"
+        : new Intl.NumberFormat("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          }).format(price ?? 0);
+
+export const serviceDurationLabel = (duration: number | null) =>
+  duration === null ? "Duração a combinar" : `${duration} min`;

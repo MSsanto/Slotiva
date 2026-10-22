@@ -38,8 +38,11 @@ is in Portuguese; maintained documentation is in English. The browser title is
 **Email and Google Calendar are not integrated yet.** Notification outbox rows
 are durable intents, not sent messages. Calendar busy-time checks, event creation,
 invites and recovery links remain pending. Professionals can create, edit and
-deactivate their own services: name, description, duration (15–240 minutes in
-5-minute steps), and paid, free or undisclosed pricing. Existing bookings keep
+deactivate their own services: name, description, optional duration (15–240 minutes
+in 5-minute steps when provided), and paid, free or undisclosed pricing. Paid prices
+may also remain blank (to be agreed); blank is never zero or free. Services without
+a fixed duration use direct scheduling with the professional, who supplies the
+encounter duration when entering an agreement. Existing bookings keep
 immutable service terms. Storage enforces whole-minute durations and integer
 price cents as well as API validation. Starts remain every 30 minutes, with a 15-minute buffer
 and São Paulo timezone. Clinical notes, payments and other timezones are not delivered.
@@ -94,7 +97,8 @@ been deployed by this increment. `main` is connected to Cloudflare Builds, so a
 merge may trigger a release and must follow a coordinated migration window.
 Migration 0002 changes booking transitions; 0003 adds identity; 0004 partitions
 professionals; 0005 adds finite agreed series; 0006 adds professional service
-catalogs and preserves original booking terms. Existing bookings become confirmed
+catalogs and preserves original booking terms; 0007 makes catalog duration and
+paid amount optional without erasing existing data. Existing bookings become confirmed
 or cancelled and belong to demo; no retroactive invitations are generated.
 Never run an older Worker against the new write contract.
 
@@ -102,7 +106,7 @@ Preview binding DB and the separate migration binding PREVIEW_DB now both target
 `slotiva-product-homologation` (`74b37b6b-7f9e-40a3-b685-546d7a0a76ac`), created
 by the owner on 2026-10-21. It differs from production and the older shared
 Preview database. Local development has no remote=true override. Apply the new
-schema only through the dedicated config. Migration 0006 rebuilds bookings and
+schema only through the dedicated config. Migrations 0006–0007 rebuild bookings and
 requires a coordinated quiet window: stop old Preview writers, export a backup,
 apply the migration and immediately publish matching code. Follow the exact
 [service release procedure](docs/HUMAN_VALIDATION.md#editable-services--migration-0006).
@@ -113,7 +117,7 @@ npx wrangler d1 migrations apply PREVIEW_DB --remote --config ./wrangler.preview
 npx wrangler preview
 ```
 
-Migration 0006 has been tested locally, but remote application and hosted service
+Migrations 0006–0007 have been tested locally, but remote application and hosted service
 acceptance remain pending. The owner's Wrangler output confirms database creation and successful remote
 application of migrations 0001–0005 on 2026-10-21 to this exact homologation ID.
 The owner also supplied a successful 0.5.0 Preview upload for this branch at

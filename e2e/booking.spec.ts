@@ -411,6 +411,7 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
 test("professional edits service duration and price visibility while existing bookings keep their terms", async ({
   page,
 }) => {
+  test.setTimeout(60000);
   await page.goto("/admin");
   await page.getByLabel("Senha administrativa").fill("test-password-long");
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
@@ -420,9 +421,9 @@ test("professional edits service duration and price visibility while existing bo
   await settings.getByRole("button", { name: "Adicionar serviço" }).click();
   await settings.getByLabel("Nome do serviço").fill("Atendimento catálogo");
   await settings.getByLabel("Descrição").fill("Descrição personalizada");
-  await settings.getByLabel("Duração (minutos)").fill("50");
+  await settings.getByLabel("Duração (minutos, opcional)").fill("50");
   await settings.getByLabel("Exibição do valor").selectOption("paid");
-  await settings.getByLabel("Valor (R$)").fill("175.50");
+  await settings.getByLabel("Valor (R$, opcional)").fill("175.50");
   await settings.getByRole("button", { name: "Salvar serviço" }).click();
   await expect(settings.getByRole("status")).toHaveText(
     "Lista de serviços atualizada.",
@@ -483,7 +484,7 @@ test("professional edits service duration and price visibility while existing bo
     .getByRole("button", { name: "Editar Atendimento catálogo", exact: true })
     .click();
   await settings.getByLabel("Nome do serviço").fill("Atendimento atualizado");
-  await settings.getByLabel("Duração (minutos)").fill("90");
+  await settings.getByLabel("Duração (minutos, opcional)").fill("90");
   await settings.getByLabel("Exibição do valor").selectOption("free");
   await settings.getByRole("button", { name: "Salvar serviço" }).click();
   await expect(
@@ -548,6 +549,73 @@ test("professional edits service duration and price visibility while existing bo
       })
     ).status(),
   ).toBe(204);
+  await settings.getByRole("button", { name: "Adicionar serviço" }).click();
+  await settings.getByLabel("Nome do serviço").fill("Serviço a combinar");
+  await settings.getByLabel("Exibição do valor").selectOption("paid");
+  await expect(settings.getByLabel("Duração (minutos, opcional)")).toBeEmpty();
+  await expect(settings.getByLabel("Valor (R$, opcional)")).toBeEmpty();
+  await settings.getByRole("button", { name: "Salvar serviço" }).click();
+  await expect(
+    settings.getByRole("button", {
+      name: "Editar Serviço a combinar",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await customer.reload();
+  const flexibleCard = customer
+    .locator(".service")
+    .filter({ hasText: "Serviço a combinar" });
+  await expect(flexibleCard).toContainText("Duração a combinar");
+  await expect(flexibleCard).toContainText("Valor a combinar");
+  await expect(flexibleCard).not.toContainText("Gratuito");
+  await flexibleCard.click();
+  await expect(customer.getByRole("status")).toHaveText(
+    "Duração a combinar. Combine a duração e o horário diretamente com o profissional.",
+  );
+  await expect(
+    customer.getByRole("button", { name: /Solicitar agendamento/ }),
+  ).toBeDisabled();
+  await expect(customer.locator(".days button")).toHaveCount(0);
+  const updatedServices = await (
+    await page.request.get("/api/admin/services")
+  ).json();
+  const flexible = updatedServices.find(
+    (s: { name: string }) => s.name === "Serviço a combinar",
+  );
+  const agreed = page.locator("form").filter({
+    has: page.getByRole("heading", {
+      name: "Horário combinado com o cliente",
+    }),
+  });
+  await agreed.getByLabel("Tipo de encontro").selectOption(flexible.id);
+  await agreed
+    .getByLabel("Nome ou identificação do cliente")
+    .fill("Flexible duration fixture");
+  await agreed.getByLabel("Duração deste encontro (minutos)").fill("50");
+  const safeSlots = await (
+    await page.request.get(
+      `/api/availability?date=${date}&serviceId=consulting`,
+    )
+  ).json();
+  expect(safeSlots.length).toBeGreaterThan(0);
+  await agreed.getByLabel("Primeira data").fill(date);
+  await agreed.getByLabel("Horário fixo").fill(safeSlots[0]);
+  await agreed.getByLabel("Frequência").selectOption("once");
+  await agreed
+    .getByRole("button", { name: "Confirmar encontros combinados" })
+    .click();
+  await expect(agreed.getByRole("status")).toContainText(
+    "1 encontro(s) confirmado(s)",
+  );
+  const booked = page
+    .locator(".appointment")
+    .filter({ hasText: "Flexible duration fixture" });
+  await expect(booked).toContainText("50 min");
+  await expect(booked).toContainText("Valor a combinar");
+  page.once("dialog", (dialog) => dialog.accept());
+  await booked
+    .getByRole("button", { name: "Cancelar só esta", exact: true })
+    .click();
   await customer.close();
 });
 

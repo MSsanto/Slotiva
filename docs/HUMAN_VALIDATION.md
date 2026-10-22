@@ -9,9 +9,12 @@ before coordinating the schema/code release.
 ## Editable services — migration 0006
 
 Implementation adds a tenant-owned service editor in /admin, dynamic public cards,
-and immutable service terms on public and agreed bookings. Local verification is
-separate from remote migration and owner acceptance. Migration 0006 has not been
+and immutable service terms on public and agreed bookings. Catalog duration and
+paid amount are optional: leave blank to agree later. Local verification is
+separate from remote migration and owner acceptance. Migrations 0006–0007 have not been
 applied remotely by the agent. Existing homologation currently has 0001–0005.
+0007 revises the initially published 0006 contract to allow optional terms; apply
+all pending migrations before publishing the matching code.
 
 The bookings table must be rebuilt to remove the old fixed-service checks. The
 migration copies every booking, backfills its original legacy terms, explicitly
@@ -60,13 +63,19 @@ Acceptance with fictional data:
 3. Edit its name, duration and price. Existing bookings and their occupied time
    must keep the old terms; new bookings use the new version. A stale open page
    must receive a conflict and require review of refreshed terms.
-4. Choose Gratuito, then Não divulgar valor. Public cards must distinguish those
+4. Add a second service leaving duration and paid amount blank. Saving must work;
+   its public card must show Duração a combinar and Valor a combinar, not zero/free.
+   Choosing it must explain direct scheduling and show no selectable public times.
+   In professional agreed-entry, choose it, enter the actual encounter duration and
+   save one encounter/series. Only the booking gets that duration; the service
+   remains flexible. A paid amount can stay unspecified even with a known duration.
+5. Choose Gratuito, then Não divulgar valor. Public cards must distinguish those
    choices; undisclosed pricing must show neither a price nor "Gratuito".
-5. Deactivate the service. It remains editable in /admin, disappears from public
+6. Deactivate the service. It remains editable in /admin, disappears from public
    cards and the agreed-booking selector, and cannot receive new bookings.
    Pending requests can still move using their original duration; existing
    approvals, individual/series cancellations and Cancelados remain functional.
-6. Check another professional's catalog is unchanged, and master cannot enter
+7. Check another professional's catalog is unchanged, and master cannot enter
    professional appointment/service APIs. Validate on mobile and by keyboard.
 
 ## Agenda and cancelled-history tabs — 2026-10-22
