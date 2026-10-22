@@ -420,7 +420,7 @@ describe("Professional-entered fixed recurrence", () => {
       expect(
         (
           await request(
-            `/api/admin/series/${value.id}`,
+            `/api/admin/series/${value.id}?fromBookingId=${value.bookings[0].id}`,
             "DELETE",
             undefined,
             authB,
@@ -430,7 +430,7 @@ describe("Professional-entered fixed recurrence", () => {
       expect(
         (
           await request(
-            `/api/admin/series/${value.id}`,
+            `/api/admin/series/${value.id}?fromBookingId=${value.bookings[0].id}`,
             "DELETE",
             undefined,
             authA,
@@ -440,6 +440,149 @@ describe("Professional-entered fixed recurrence", () => {
       expect((await publicBooking(a)).status).toBe(201);
     },
   );
+  it.each(["weekly", "fortnightly"])(
+    "cancels %s from the selected occurrence and preserves earlier future bookings",
+    async (frequency) => {
+      const created = await request(
+        "/api/admin/series",
+        "POST",
+        series({ frequency }),
+        authA,
+      );
+      const value = (await created.json()) as {
+        id: string;
+        bookings: { id: string }[];
+      };
+      const ids = value.bookings.map((b) => b.id);
+      await request(
+        `/api/admin/bookings/${ids[0]}`,
+        "DELETE",
+        undefined,
+        authA,
+      );
+      const cutoff = `/api/admin/series/${value.id}?fromBookingId=${ids[2]}`;
+      expect((await request(cutoff, "DELETE", undefined, authA)).status).toBe(
+        204,
+      );
+      const states = async () =>
+        (
+          await db
+            .prepare(
+              "SELECT id,status,version FROM bookings WHERE series_id=? ORDER BY starts_at",
+            )
+            .bind(value.id)
+            .all<{ id: string; status: string; version: number }>()
+        ).results;
+      const after = await states();
+      expect(after.map((b) => b.status)).toEqual([
+        "cancelled",
+        "confirmed",
+        "cancelled",
+        "cancelled",
+      ]);
+      expect(after.map((b) => b.version)).toEqual([2, 1, 2, 2]);
+      expect(
+        await db
+          .prepare("SELECT count(*) n FROM occupied_slots WHERE booking_id=?")
+          .bind(ids[1])
+          .first("n"),
+      ).toBeGreaterThan(0);
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) n FROM occupied_slots WHERE booking_id IN (?,?)",
+          )
+          .bind(ids[2], ids[3])
+          .first("n"),
+      ).toBe(0);
+      expect(
+        await db
+          .prepare("SELECT status FROM booking_series WHERE id=?")
+          .bind(value.id)
+          .first("status"),
+      ).toBe("active");
+      expect((await request(cutoff, "DELETE", undefined, authA)).status).toBe(
+        204,
+      );
+      expect(await states()).toEqual(after);
+      expect(
+        (
+          await request(
+            `/api/admin/series/${value.id}?fromBookingId=${ids[1]}`,
+            "DELETE",
+            undefined,
+            authA,
+          )
+        ).status,
+      ).toBe(204);
+      expect((await states()).every((b) => b.status === "cancelled")).toBe(
+        true,
+      );
+      expect(
+        await db
+          .prepare("SELECT status FROM booking_series WHERE id=?")
+          .bind(value.id)
+          .first("status"),
+      ).toBe("cancelled");
+    },
+  );
+  it("requires an explicit valid anchor owned by this professional and series before cancelling", async () => {
+    const created = await request("/api/admin/series", "POST", series(), authA);
+    const value = (await created.json()) as {
+      id: string;
+      bookings: { id: string }[];
+    };
+    const another = (await (
+      await request(
+        "/api/admin/series",
+        "POST",
+        series({ time: "11:00" }),
+        authA,
+      )
+    ).json()) as { bookings: { id: string }[] };
+    for (const suffix of ["", "?fromBookingId=bad"]) {
+      expect(
+        (
+          await request(
+            `/api/admin/series/${value.id}${suffix}`,
+            "DELETE",
+            undefined,
+            authA,
+          )
+        ).status,
+      ).toBe(422);
+    }
+    for (const anchor of [crypto.randomUUID(), another.bookings[0].id]) {
+      expect(
+        (
+          await request(
+            `/api/admin/series/${value.id}?fromBookingId=${anchor}`,
+            "DELETE",
+            undefined,
+            authA,
+          )
+        ).status,
+      ).toBe(404);
+    }
+    expect(
+      (
+        await request(
+          `/api/admin/series/${value.id}?fromBookingId=${value.bookings[1].id}`,
+          "DELETE",
+          undefined,
+          authB,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM bookings WHERE series_id=? AND status='confirmed'",
+        )
+        .bind(value.id)
+        .first("n"),
+    ).toBe(4);
+  });
   it("rolls back the whole series, slots, outbox and events if any later occurrence conflicts", async () => {
     const later = date();
     const d = new Date(`${later}T12:00:00Z`);

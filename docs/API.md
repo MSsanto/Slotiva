@@ -97,7 +97,7 @@ Requires the professional role. Every route below derives tenant from the sessio
 | POST /api/admin/bookings/{uuid}/approve or /reject | `{version}`; decision before 24h deadline, tenant checked                                               |
 | DELETE /api/admin/bookings/{uuid}                  | Cancel one active occurrence/booking, 204                                                               |
 | POST /api/admin/series                             | Explicit agreed single or finite recurring appointments, described below                                |
-| DELETE /api/admin/series/{uuid}                    | Cancel all future confirmed occurrences, preserve past; repeated call safe; 204                         |
+| DELETE /api/admin/series/{uuid}?fromBookingId={uuid} | Cancel selected occurrence and later future confirmed occurrences; preserve earlier encounters; 204 |
 
 Series input: `{requestId,serviceId,date,time,name,email,frequency,count}`.
 requestId is a caller-generated UUID for deduplication; frequency is once, weekly
@@ -152,3 +152,20 @@ bypassed and failures create no authenticated session.
 The native Worker token transport now preserves global fetch's receiver. Request,
 callback, credential and authorization contracts are unchanged; this fixes a
 pre-network runtime exception previously classified as exchange_unavailable.
+
+## Series cancellation cutoff
+
+DELETE /api/admin/series/{seriesId} now requires exactly one fromBookingId query
+parameter containing a UUID. Missing, malformed or duplicate anchors return 422
+without cancelling anything. Older clients omitting the anchor fail closed and
+must reload the updated UI. An anchor not belonging to both this series and the
+session's professional returns 404. The caller cannot supply a date or owner ID.
+
+The server resolves starts_at from that owned occurrence, then atomically cancels
+only confirmed bookings of the same series/tenant with starts_at >= anchor and
+starts_at > current time. Earlier future and historical appointments are preserved.
+Existing cancellation triggers release occupancy and record transitions/outbox;
+already cancelled rows are untouched. Repeating the same request returns 204
+without additional versions or cancellations. A cancelled anchor remains valid
+for retry. Series status remains active while any future confirmed occurrence
+remains, otherwise cancelled. No migration or automatic restoration is performed.

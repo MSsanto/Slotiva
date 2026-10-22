@@ -6,6 +6,31 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Series cancellation acceptance and correction — 2026-10-22
+
+The owner supplied screenshots showing weekly agreed appointments at 15:00 on
+October 30, November 6 and November 13, with further confirmed dates through
+December 4. A public screenshot for October 30 omitted the occupied 15:00 time.
+Subsequent screenshots show October 30 cancelled and 15:00 available again while
+November 13, 20, 27 and December 4 remain confirmed. This is evidence of weekly
+creation, public occupancy and isolated occurrence cancellation, not fortnightly
+or complete series-cutoff acceptance. No client contact details are retained here.
+
+The owner then reported that cancelling the series cancelled everything. Inspection
+confirmed the old API took only a series ID and cancelled every future encounter
+from now, not from the clicked occurrence. Earlier test instructions promising
+that November 13 would survive a click on November 20 did not match that code.
+The correction requires fromBookingId and preserves encounters before the selected
+row even if they are future. This fix is locally tested; hosted retest is pending.
+
+After publishing the update, reload the professional UI. Recreate a fictional
+series for testing; already cancelled encounters are not automatically restored.
+Cancel from a middle occurrence using "Cancelar esta e próximas" and check the
+confirmation dialog's exact date/time. Verify earlier future occurrences remain
+confirmed/occupied, the selected and later ones are cancelled/released, and a
+repeat attempt does not change prior encounters. Do not infer tenant isolation,
+fortnightly recurrence or concurrent conflict acceptance from these screenshots.
+
 ## Completed basic hosted booking cycle — 2026-10-22
 
 Following the positive login/provisioning evidence below, the owner supplied a
@@ -298,8 +323,10 @@ all dates, local time and the final date. Repeat a request after an ambiguous
 network failure and verify no duplication. Arrange a conflicting later occurrence:
 the whole new series must fail with no partial dates. Confirm public availability
 hides those occupied intervals and another professional can still use that time.
-Cancel one occurrence, then cancel the remaining future series. Verify released
-slots and preserved history. Confirm no automatic renewal is expected.
+Cancel one occurrence, then use "Cancelar esta e próximas" on a middle occurrence.
+Verify earlier future encounters stay confirmed/occupied and only the selected
+and subsequent future encounters are cancelled/released. Check the dialog's date
+and time. Confirm preserved history and no automatic renewal.
 
 Exercise a public request (>=48h, within 14 days), pending status/deadline,
 professional approval/rejection, customer status polling and cancellation. At

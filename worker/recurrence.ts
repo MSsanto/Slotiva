@@ -101,19 +101,24 @@ export async function cancelSeries(
   env: Env,
   professionalId: string,
   id: string,
+  fromBookingId: string,
 ) {
-  const series = await env.DB.prepare(
-    "SELECT id FROM booking_series WHERE id=? AND professional_id=?",
+  // Resolve the cutoff from an owned occurrence, never from a caller's date.
+  // Cancelled anchors remain resolvable so retries are idempotent.
+  const anchor = await env.DB.prepare(
+    "SELECT starts_at FROM bookings WHERE id=? AND series_id=? AND professional_id=?",
   )
-    .bind(id, professionalId)
-    .first();
-  if (!series) throw new HttpError(404, "Série não encontrada.");
+    .bind(fromBookingId, id, professionalId)
+    .first<{ starts_at: number }>();
+  if (!anchor) throw new HttpError(404, "Ocorrência da série não encontrada.");
   await env.DB.batch([
     env.DB.prepare(
-      "UPDATE booking_series SET status='cancelled' WHERE id=? AND professional_id=?",
-    ).bind(id, professionalId),
+      "UPDATE bookings SET status='cancelled',cancelled=1,version=version+1,decided_at=unixepoch() WHERE series_id=? AND professional_id=? AND status='confirmed' AND starts_at>=? AND starts_at>unixepoch()",
+    ).bind(id, professionalId, anchor.starts_at),
     env.DB.prepare(
-      "UPDATE bookings SET status='cancelled',cancelled=1,version=version+1,decided_at=unixepoch() WHERE series_id=? AND professional_id=? AND status='confirmed' AND starts_at>unixepoch()",
-    ).bind(id, professionalId),
+      `UPDATE booking_series SET status=CASE WHEN EXISTS(
+        SELECT 1 FROM bookings WHERE series_id=? AND professional_id=? AND status='confirmed' AND starts_at>unixepoch()
+      ) THEN 'active' ELSE 'cancelled' END WHERE id=? AND professional_id=?`,
+    ).bind(id, professionalId, id, professionalId),
   ]);
 }

@@ -45,9 +45,18 @@ the same series, different contents under that key fail with 409. Unused random
 customer secrets are hashed and discarded; the professional route does not issue
 self-service customer access. The actor is stored on the series.
 
-Cancel one appointment with the existing route or all future confirmed occurrences
-of its series. Historical occurrences remain unchanged. Repeated cancellation is
-safe. Editing a series or moving a confirmed occurrence remains pending; cancel
+Cancel one appointment with the existing route, or cancel the selected occurrence
+and subsequent future confirmed occurrences of its series. The latter requires a
+server-resolved fromBookingId owned by the same tenant and series. Earlier future
+encounters and historical occurrences remain unchanged. Repeated cancellation is
+safe; there is no implicit "from now" cutoff when an anchor is missing. The dialog
+names the selected date/time and the button says "Cancelar esta e próximas".
+The series remains active while earlier future confirmed encounters remain.
+
+This supersedes the original all-future-from-now behavior, which could cancel
+encounters preceding the clicked row. The owner's report exposed the mismatch
+between the row-level action/test instructions and that original implementation.
+The changed boundary is intentional: the clicked occurrence determines the cutoff. Editing a series or moving a confirmed occurrence remains pending; cancel
 and explicitly recreate after checking availability. No Calendar event, email or
 invitation is sent; awaiting_integration is not delivery.
 

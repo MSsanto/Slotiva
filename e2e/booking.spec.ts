@@ -155,7 +155,7 @@ test("Google-only setup never offers a password fallback", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-test("professional enters a fortnightly agreement and cancels one occurrence then the remaining series", async ({
+test("professional cancels one occurrence then a middle cutoff while preserving earlier future encounters", async ({
   page,
 }) => {
   await page.goto("/admin");
@@ -177,27 +177,37 @@ test("professional enters a fortnightly agreement and cancels one occurrence the
   await form.getByLabel("Primeira data").fill(d.toISOString().slice(0, 10));
   await form.getByLabel("Horário fixo").fill("11:00");
   await form.getByLabel("Frequência").selectOption("fortnightly");
-  await form.getByLabel("Quantidade de encontros").fill("3");
+  await form.getByLabel("Quantidade de encontros").fill("4");
   await form
     .getByRole("button", { name: "Confirmar encontros combinados" })
     .click();
   await expect(form.getByRole("status")).toContainText(
-    "3 encontro(s) confirmado(s)",
+    "4 encontro(s) confirmado(s)",
   );
   const rows = page
     .locator(".appointment")
     .filter({ hasText: "Recurring Browser Demo" });
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(4);
   await rows
     .first()
     .getByRole("button", { name: "Cancelar reserva", exact: true })
     .click();
   await expect(rows.first()).toContainText("Cancelado");
-  page.once("dialog", (dialog) => dialog.accept());
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Cancelar este encontro de");
+    expect(dialog.message()).toContain("às 11:00");
+    expect(dialog.message()).toContain(
+      "Encontros anteriores a essa data serão preservados.",
+    );
+    await dialog.accept();
+  });
   await rows
-    .nth(1)
-    .getByRole("button", { name: "Cancelar próximos da série" })
+    .nth(2)
+    .getByRole("button", { name: "Cancelar esta e próximas" })
     .click();
+  await expect(rows.nth(1)).toContainText("Confirmado pelo profissional");
+  await expect(rows.nth(2)).toContainText("Cancelado");
+  await expect(rows.nth(3)).toContainText("Cancelado");
   await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(3);
 });
 

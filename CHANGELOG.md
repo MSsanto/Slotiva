@@ -4,6 +4,18 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Cancel recurring appointments from the selected occurrence
+
+- Fixes the row action sending only a series ID and cancelling every future
+  encounter from now. It now sends a required occurrence anchor and cancels that
+  occurrence and later future encounters, preserving earlier future appointments.
+- Makes the button and confirmation explicit about the selected date/time.
+  Old clients without an anchor fail closed with 422; reload after deployment.
+- Keeps occupancy/events atomic, retries safe and a partially active series active.
+  No migration or automatic restoration of previously cancelled bookings.
+- Records owner-observed weekly creation/individual cancellation and the report
+  of excessive series cancellation. Hosted verification of the fix remains pending.
+
 ## 2026-10-22 — Owner validates approval and cancellation cycle
 
 - Records hosted screenshot evidence of professional approval and cancellation,

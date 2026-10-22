@@ -376,7 +376,14 @@ async function route(request: Request, env: Env) {
       );
     const seriesMatch = path.match(/^\/api\/admin\/series\/([^/]+)$/);
     if (seriesMatch && method === "DELETE") {
-      await cancelSeries(env, professionalId, seriesMatch[1]);
+      const anchors = url.searchParams.getAll("fromBookingId");
+      const anchor = bookingId.safeParse(anchors[0]);
+      if (anchors.length !== 1 || !anchor.success)
+        throw new HttpError(
+          422,
+          "Selecione a ocorrência inicial do cancelamento.",
+        );
+      await cancelSeries(env, professionalId, seriesMatch[1], anchor.data);
       return noContent();
     }
     if (path === "/api/admin/services" && method === "GET")

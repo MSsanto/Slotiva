@@ -148,3 +148,17 @@ Validation for the receiver fix: 74 Worker tests across five files, production
 build, lint and format checks passed locally. The new runtime test was observed
 failing before the fix and passing after it. Browser/real Google acceptance is
 not implied by these results.
+
+Series cutoff regression coverage exercises weekly and fortnightly bookings in the
+bundled Worker/D1: earlier future encounters survive, previously cancelled ones
+stay unchanged, selected/later occupancy is released, versions remain stable on
+retry, and a partially cancelled series remains active. Missing/malformed anchors
+fail closed; foreign-series and foreign-tenant anchors cannot cancel bookings.
+The browser journey now selects a middle occurrence and checks earlier survival
+and an explicit confirmation dialog. Local browser execution remains pending due
+to the previously unavailable Playwright browser installation.
+
+For the selected-occurrence correction, all 77 Worker tests, production build,
+lint and formatting passed locally. Three new cases failed against the old
+implementation and passed after the change. Hosted and browser confirmation of
+this changed cancellation boundary remain pending.

@@ -91,11 +91,13 @@ export default function AdminPage() {
     queryFn: () => api<Service[]>("/admin/services"),
   });
   const cancelSeries = useMutation({
-    mutationFn: (id: string) =>
-      api(`/admin/series/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
+    mutationFn: (booking: Booking) =>
+      api(`/admin/series/${booking.seriesId}?fromBookingId=${booking.id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: (_, booking) => {
       setNotice(
-        "Próximos encontros da série cancelados. Encontros anteriores foram preservados.",
+        `Encontros da série a partir de ${formatDate(booking.date)} às ${booking.time} cancelados. Encontros anteriores a essa data foram preservados.`,
       );
       void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
       void client.invalidateQueries({ queryKey: ["availability"] });
@@ -314,13 +316,13 @@ export default function AdminPage() {
                   onClick={() => {
                     if (
                       window.confirm(
-                        "Cancelar todos os próximos encontros desta série? Encontros anteriores serão preservados.",
+                        `Cancelar este encontro de ${formatDate(b.date)} às ${b.time} e todos os seguintes desta série? Encontros anteriores a essa data serão preservados.`,
                       )
                     )
-                      cancelSeries.mutate(b.seriesId!);
+                      cancelSeries.mutate(b);
                   }}
                 >
-                  Cancelar próximos da série
+                  Cancelar esta e próximas
                 </button>
               )}
             </div>
