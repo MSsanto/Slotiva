@@ -1,7 +1,7 @@
 import AgreedBookings from "./AgreedBookings";
 import { Navigate } from "react-router-dom";
 import ProfessionalSettings from "./ProfessionalSettings";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
@@ -46,6 +46,10 @@ export default function AdminPage() {
   const client = useQueryClient();
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
+  const [bookingTab, setBookingTab] = useState<"agenda" | "cancelled">(
+    "agenda",
+  );
+  const bookingTabButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const session = useQuery({
     queryKey: ["session"],
     queryFn: () => api<{ role: "master" | "professional" }>("/admin/session"),
@@ -71,6 +75,7 @@ export default function AdminPage() {
   const logout = useMutation({
     mutationFn: () => api("/admin/logout", { method: "POST" }),
     onSuccess: () => {
+      setBookingTab("agenda");
       client.removeQueries({ queryKey: ["admin"] });
       void client.invalidateQueries({ queryKey: ["session"] });
     },
@@ -215,6 +220,16 @@ export default function AdminPage() {
       </section>
     );
   if (session.data?.role === "master") return <Navigate to="/master" replace />;
+  const cancelledBookings =
+    bookings.data?.filter((b) => b.status === "cancelled") || [];
+  const agendaBookings =
+    bookings.data?.filter((b) => b.status !== "cancelled") || [];
+  const visibleBookings =
+    bookingTab === "cancelled" ? cancelledBookings : agendaBookings;
+  const bookingTabs = [
+    { id: "agenda", label: "Agenda", count: agendaBookings.length },
+    { id: "cancelled", label: "Cancelados", count: cancelledBookings.length },
+  ] as const;
   const error =
     bookings.error ||
     hours.error ||
@@ -249,98 +264,144 @@ export default function AdminPage() {
           </button>
         </p>
       )}
-      {bookings.isPending ? (
-        <p role="status">Carregando reservas…</p>
-      ) : bookings.data?.length === 0 ? (
-        <p className="empty">Sua agenda está livre.</p>
-      ) : (
-        bookings.data?.map((b) => (
-          <article className="appointment" key={b.id}>
-            <div>
-              <strong>
-                {formatDate(b.date)} · {b.time}
-              </strong>
-              <p>
-                {services.data?.find((s) => s.id === b.serviceId)?.name} ·{" "}
-                {b.name}
-              </p>
-              <small>{b.email}</small>
-              <p>
-                {statusLabel(b.status)}
-                {b.seriesId ? " · Horário combinado" : ""}
-              </p>
-              {b.status === "pending_approval" && b.approvalExpiresAt && (
-                <small>
-                  Aprovar antes de {formatDeadline(b.approvalExpiresAt)}{" "}
-                  (Brasília)
-                </small>
-              )}
-            </div>
-            <div>
-              {b.status === "pending_approval" && (
-                <>
-                  <button
-                    className="primary"
-                    disabled={decision.isPending || cancel.isPending}
-                    onClick={() =>
-                      decision.mutate({ booking: b, action: "approve" })
-                    }
-                  >
-                    Aprovar
-                  </button>
+      <div
+        className="booking-tabs"
+        role="tablist"
+        aria-label="Reservas da agenda"
+        onKeyDown={(event) => {
+          const current = bookingTab === "agenda" ? 0 : 1;
+          let next: number;
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+            next = 1 - current;
+          else if (event.key === "Home") next = 0;
+          else if (event.key === "End") next = 1;
+          else return;
+          event.preventDefault();
+          setBookingTab(bookingTabs[next].id);
+          bookingTabButtons.current[next]?.focus();
+        }}
+      >
+        {bookingTabs.map((tab, index) => (
+          <button
+            key={tab.id}
+            id={`bookings-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            aria-selected={bookingTab === tab.id}
+            aria-controls="bookings-panel"
+            tabIndex={bookingTab === tab.id ? 0 : -1}
+            ref={(button) => {
+              bookingTabButtons.current[index] = button;
+            }}
+            onClick={() => setBookingTab(tab.id)}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
+      </div>
+      <div
+        id="bookings-panel"
+        role="tabpanel"
+        aria-labelledby={`bookings-tab-${bookingTab}`}
+        tabIndex={0}
+      >
+        {bookings.isPending ? (
+          <p role="status">Carregando reservas…</p>
+        ) : bookings.isError ? null : visibleBookings.length === 0 ? (
+          <p className="empty">
+            {bookingTab === "cancelled"
+              ? "Nenhuma reserva cancelada."
+              : "Nenhuma reserva nesta aba."}
+          </p>
+        ) : (
+          visibleBookings.map((b) => (
+            <article className="appointment" key={b.id}>
+              <div>
+                <strong>
+                  {formatDate(b.date)} · {b.time}
+                </strong>
+                <p>
+                  {services.data?.find((s) => s.id === b.serviceId)?.name} ·{" "}
+                  {b.name}
+                </p>
+                <small>{b.email}</small>
+                <p>
+                  {statusLabel(b.status)}
+                  {b.seriesId ? " · Horário combinado" : ""}
+                </p>
+                {b.status === "pending_approval" && b.approvalExpiresAt && (
+                  <small>
+                    Aprovar antes de {formatDeadline(b.approvalExpiresAt)}{" "}
+                    (Brasília)
+                  </small>
+                )}
+              </div>
+              <div>
+                {b.status === "pending_approval" && (
+                  <>
+                    <button
+                      className="primary"
+                      disabled={decision.isPending || cancel.isPending}
+                      onClick={() =>
+                        decision.mutate({ booking: b, action: "approve" })
+                      }
+                    >
+                      Aprovar
+                    </button>
+                    <button
+                      className="text-button"
+                      disabled={decision.isPending || cancel.isPending}
+                      onClick={() =>
+                        decision.mutate({ booking: b, action: "reject" })
+                      }
+                    >
+                      Recusar
+                    </button>
+                  </>
+                )}
+                {(b.status === "confirmed" ||
+                  b.status === "pending_approval") && (
                   <button
                     className="text-button"
-                    disabled={decision.isPending || cancel.isPending}
-                    onClick={() =>
-                      decision.mutate({ booking: b, action: "reject" })
+                    disabled={
+                      cancel.isPending ||
+                      cancelSeries.isPending ||
+                      decision.isPending
                     }
+                    onClick={() => {
+                      if (
+                        !b.seriesId ||
+                        window.confirm(
+                          `Cancelar somente o encontro de ${formatDate(b.date)} às ${b.time}? Os outros encontros da série serão preservados.`,
+                        )
+                      )
+                        cancel.mutate(b.id);
+                    }}
                   >
-                    Recusar
+                    {b.seriesId ? "Cancelar só esta" : "Cancelar reserva"}
                   </button>
-                </>
-              )}
-              {(b.status === "confirmed" ||
-                b.status === "pending_approval") && (
-                <button
-                  className="text-button"
-                  disabled={
-                    cancel.isPending ||
-                    cancelSeries.isPending ||
-                    decision.isPending
-                  }
-                  onClick={() => {
-                    if (
-                      !b.seriesId ||
-                      window.confirm(
-                        `Cancelar somente o encontro de ${formatDate(b.date)} às ${b.time}? Os outros encontros da série serão preservados.`,
+                )}
+                {b.seriesId && b.status === "confirmed" && (
+                  <button
+                    className="text-button"
+                    disabled={cancelSeries.isPending || cancel.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Cancelar TODOS os encontros futuros desta série, inclusive os anteriores à data desta ocorrência? Encontros já realizados serão preservados.",
+                        )
                       )
-                    )
-                      cancel.mutate(b.id);
-                  }}
-                >
-                  {b.seriesId ? "Cancelar só esta" : "Cancelar reserva"}
-                </button>
-              )}
-              {b.seriesId && b.status === "confirmed" && (
-                <button
-                  className="text-button"
-                  disabled={cancelSeries.isPending || cancel.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Cancelar TODOS os encontros futuros desta série, inclusive os anteriores à data desta ocorrência? Encontros já realizados serão preservados.",
-                      )
-                    )
-                      cancelSeries.mutate(b);
-                  }}
-                >
-                  Cancelar todas da série
-                </button>
-              )}
-            </div>
-          </article>
-        ))
-      )}
+                        cancelSeries.mutate(b);
+                    }}
+                  >
+                    Cancelar todas da série
+                  </button>
+                )}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
       <AgreedBookings />
       <ProfessionalSettings />
       {hours.data && (

@@ -7,6 +7,9 @@ is in Portuguese; maintained documentation is in English. The browser title is
 
 ## Current increment: 0.5.0
 
+- The professional agenda opens on the Agenda tab, which excludes cancelled
+  bookings. Cancelados keeps their read-only history and counts; cancellations
+  move out of Agenda after refresh. Tabs support arrow keys, Home and End.
 - `/master`: Google-authenticated platform administration creates professionals,
   edits their headers, suspends/reactivates and removes accounts. It does not
   grant access to professionals' appointment APIs.

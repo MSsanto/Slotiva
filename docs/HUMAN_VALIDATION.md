@@ -6,6 +6,23 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Agenda and cancelled-history tabs — 2026-10-22
+
+The owner requested a separate Cancelados tab to declutter the appointment area.
+The professional UI defaults to Agenda and filters out status=cancelled. The
+Cancelados tab displays that history with no booking action buttons. Each tab
+shows its count, provides its own empty message, and supports arrows/Home/End.
+This is a client-side display filter over the same authorized bookings endpoint;
+no record is deleted and no backend, migration or authorization rule changes.
+Statuses other than cancelled retain their existing placement in Agenda.
+
+Verify: cancel one fictional appointment, check it disappears from Agenda and
+appears in Cancelados; check counts, bulk cancellation and reload default. A
+cancelled entry must have no approve/cancel action. Use keyboard navigation and
+check empty states. Earlier screenshot instructions showing cancelled rows inline
+are historical; use Cancelados for those checks after deploying this update.
+Latest hosted acceptance of this layout remains pending.
+
 ## Current cancellation acceptance: only this or all — 2026-10-22
 
 The owner reported another excessive cancellation after selecting November 6 and

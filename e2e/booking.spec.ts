@@ -91,6 +91,8 @@ test("request, edit, approve and cancel with a live customer receipt", async ({
     page.getByRole("button", { name: "Alterar solicitação", exact: true }),
   ).toHaveCount(0);
   await row.getByRole("button", { name: "Cancelar reserva" }).click();
+  await expect(row).toHaveCount(0);
+  await professional.getByRole("tab", { name: /^Cancelados/ }).click();
   await expect(row).toContainText("Cancelado");
   await page.bringToFront();
   await expect(page.locator(".confirmation .eyebrow")).toContainText(
@@ -207,10 +209,16 @@ test("professional explicitly chooses only this occurrence or all future series 
     .nth(2)
     .getByRole("button", { name: "Cancelar só esta", exact: true })
     .click();
-  await expect(rows.nth(2)).toContainText("Cancelado");
-  await expect(rows.nth(0)).toContainText("Confirmado pelo profissional");
-  await expect(rows.nth(1)).toContainText("Confirmado pelo profissional");
-  await expect(rows.nth(3)).toContainText("Confirmado pelo profissional");
+  await expect(rows).toHaveCount(3);
+  await expect(
+    rows.filter({ hasText: "Confirmado pelo profissional" }),
+  ).toHaveCount(3);
+  await page.getByRole("tab", { name: /^Cancelados/ }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Cancelado");
+  await expect(rows.getByRole("button")).toHaveCount(0);
+  await page.getByRole("tab", { name: /^Agenda/ }).click();
+  await expect(rows).toHaveCount(3);
   page.once("dialog", async (dialog) => {
     await dialog.dismiss();
   });
@@ -218,7 +226,7 @@ test("professional explicitly chooses only this occurrence or all future series 
     .nth(1)
     .getByRole("button", { name: "Cancelar todas da série", exact: true })
     .click();
-  await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(1);
+  await expect(rows).toHaveCount(3);
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain(
       "Cancelar TODOS os encontros futuros desta série",
@@ -232,6 +240,8 @@ test("professional explicitly chooses only this occurrence or all future series 
     .nth(1)
     .getByRole("button", { name: "Cancelar todas da série", exact: true })
     .click();
+  await expect(rows).toHaveCount(0);
+  await page.getByRole("tab", { name: /^Cancelados/ }).click();
   await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(4);
 });
 
@@ -300,3 +310,88 @@ for (const reason of ["authorization", "__proto__"]) {
     await expect(page.getByLabel("Senha administrativa")).toHaveCount(0);
   });
 }
+
+test("agenda separates cancelled history with counts, empty states and keyboard tabs (API fixtures)", async ({
+  page,
+}) => {
+  let writes = 0;
+  const bookings = [
+    { id: "fixture-confirmed", status: "confirmed", name: "Active fixture" },
+    {
+      id: "fixture-pending",
+      status: "pending_approval",
+      name: "Pending fixture",
+    },
+    { id: "fixture-cancelled", status: "cancelled", name: "Cancelled fixture" },
+  ].map((b) => ({
+    ...b,
+    serviceId: "discovery",
+    date: "2026-10-30",
+    time: "15:00",
+    email: "",
+    version: 1,
+    approvalExpiresAt: null,
+    seriesId: null,
+  }));
+  await page.route("**/api/**", async (route) => {
+    if (route.request().method() !== "GET") {
+      writes++;
+      await route.fulfill({ status: 405 });
+      return;
+    }
+    const path = new URL(route.request().url()).pathname;
+    const responses: Record<string, unknown> = {
+      "/api/admin/session": { role: "professional", authenticated: true },
+      "/api/auth/config": { googleEnabled: true, passwordEnabled: false },
+      "/api/admin/bookings": bookings,
+      "/api/admin/hours": [],
+      "/api/admin/services": [
+        { id: "discovery", name: "Conversa inicial", duration: 30 },
+      ],
+      "/api/admin/profile": {
+        id: "fixture",
+        slug: "fixture",
+        displayName: "Fixture Professional",
+        headerTitle: "Agenda",
+        headerSubtitle: "Teste",
+        theme: "forest",
+        version: 1,
+      },
+    };
+    await route.fulfill({ json: responses[path] ?? [] });
+  });
+  await page.goto("/admin");
+  const agenda = page.getByRole("tab", { name: "Agenda (2)", exact: true });
+  const cancelled = page.getByRole("tab", {
+    name: "Cancelados (1)",
+    exact: true,
+  });
+  const panel = page.getByRole("tabpanel");
+  await expect(agenda).toHaveAttribute("aria-selected", "true");
+  await expect(panel.locator(".appointment")).toHaveCount(2);
+  await expect(panel).not.toContainText("Cancelled fixture");
+  await agenda.focus();
+  await agenda.press("ArrowRight");
+  await expect(cancelled).toBeFocused();
+  await expect(cancelled).toHaveAttribute("aria-selected", "true");
+  await expect(panel.locator(".appointment")).toHaveCount(1);
+  await expect(panel).toContainText("Cancelled fixture");
+  await expect(panel.getByRole("button")).toHaveCount(0);
+  await cancelled.press("Home");
+  await expect(agenda).toBeFocused();
+  await expect(panel).toContainText("Pending fixture");
+  await agenda.press("End");
+  await expect(cancelled).toBeFocused();
+  await cancelled.press("ArrowRight");
+  await expect(agenda).toBeFocused();
+  bookings.splice(0, bookings.length);
+  await page.reload();
+  await expect(page.getByRole("tabpanel")).toHaveText(
+    "Nenhuma reserva nesta aba.",
+  );
+  await page.getByRole("tab", { name: "Cancelados (0)", exact: true }).click();
+  await expect(page.getByRole("tabpanel")).toHaveText(
+    "Nenhuma reserva cancelada.",
+  );
+  expect(writes).toBe(0);
+});

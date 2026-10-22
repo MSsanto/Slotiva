@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Separate cancelled reservations from the working agenda
+
+- Adds Agenda and Cancelados tabs with counts, empty states and keyboard support.
+  Agenda excludes cancelled rows; Cancelados retains their read-only history.
+- Single/bulk cancellations leave the working list after the existing query
+  refresh. No deletion, migration, backend or authorization change.
+- Updates cancellation browser journeys and adds filtering/keyboard/read-only
+  regression coverage; latest hosted layout acceptance remains pending.
+
 ## 2026-10-22 — Explicit cancel-only-this or cancel-all-series actions
 
 - Implements the owner's revised choice: Cancelar só esta preserves other

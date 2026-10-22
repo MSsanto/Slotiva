@@ -649,3 +649,24 @@ h2:focus {
 .tenant-plum h1 {
   color: #60335c;
 }
+
+.booking-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 12px;
+  border-bottom: 1px solid #dfe5d9;
+  padding-bottom: 12px;
+}
+.booking-tabs [role="tab"] {
+  border: 1px solid #cad6c6;
+  padding: 10px 16px;
+  background: #fff;
+  font-weight: 600;
+  min-height: 44px;
+}
+.booking-tabs [aria-selected="true"] {
+  background: #284f42;
+  border-color: #284f42;
+  color: #fff;
+}

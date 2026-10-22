@@ -170,3 +170,10 @@ of ambiguous scopes. The browser journey tests dismissal and acceptance of both
 confirmations and observes single versus all outcomes. All 80 Worker tests,
 production build, lint and formatting passed locally. Browser/hosted acceptance
 of the new choices remains pending; the existing cutoff API tests remain valid.
+
+Cancelled-history UI regression coverage updates the real booking and series
+cancellation journeys to verify removal from Agenda and preservation in Cancelados.
+An API-fixture journey verifies default selection, counts, correct filtering,
+read-only cancelled rows, arrow/Home/End focus navigation, empty states and no
+mutation requests from tab switching. This is UI coverage, not new backend
+security evidence. Backend behavior, history storage and authorization are unchanged.
