@@ -22,6 +22,18 @@ const googleFailureMessages = new Map(
       "O acesso expirou ou o cookie de verificação não chegou. Reinicie nesta aba.",
     exchange:
       "Não foi possível concluir a troca com Google. O responsável deve conferir o Client ID, o Client Secret e o callback.",
+    exchange_invalid_client:
+      "Google recusou as credenciais da aplicação (invalid_client). O responsável deve conferir o Client Secret correspondente ao Client ID deste Preview.",
+    exchange_invalid_grant:
+      "Google recusou o código de autorização (invalid_grant). Reinicie o acesso nesta aba; se persistir, o responsável deve conferir o callback e o PKCE.",
+    exchange_unauthorized_client:
+      "O cliente OAuth não está autorizado para esta troca (unauthorized_client). O responsável deve conferir o tipo e a configuração do cliente Google.",
+    exchange_redirect_uri_mismatch:
+      "O endereço de retorno não corresponde ao cadastrado no Google (redirect_uri_mismatch). O responsável deve conferir o callback exato.",
+    exchange_invalid_request:
+      "Google recusou os parâmetros da troca (invalid_request). O responsável deve verificar a integração.",
+    exchange_unavailable:
+      "Não foi possível concluir a conexão com Google. Reinicie o acesso; se persistir, procure o responsável.",
     identity: "Não foi possível validar a identidade recebida do Google.",
     authorization:
       "Esta conta Google não tem acesso autorizado. Escolha a conta cadastrada pelo responsável.",

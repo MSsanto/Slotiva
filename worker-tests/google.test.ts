@@ -369,6 +369,7 @@ describe("Google professional authentication", () => {
   it.each([
     ["expired state", "transaction"],
     ["provider rejection", "exchange"],
+    ["network failure", "exchange_unavailable"],
     ["invalid identity", "identity"],
     ["unauthorized account", "authorization"],
     ["session storage failure", "session"],
@@ -387,6 +388,10 @@ describe("Google professional authentication", () => {
         fetcher = vi.fn(
           async () => new Response("sensitive-provider-body", { status: 400 }),
         );
+      if (scenario === "network failure")
+        fetcher = vi.fn(async () => {
+          throw new Error("private-network-error");
+        });
       if (scenario === "invalid identity")
         fetcher = transport(await signed("wrong-nonce"));
       if (scenario === "unauthorized account")
@@ -425,6 +430,49 @@ describe("Google professional authentication", () => {
       expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
       expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
       expect(await db.prepare("SELECT 1 FROM sessions").first()).toBeNull();
+    },
+  );
+  it.each([
+    ["invalid_client", 401, "exchange_invalid_client"],
+    ["invalid_grant", 400, "exchange_invalid_grant"],
+    ["unauthorized_client", 400, "exchange_unauthorized_client"],
+    ["redirect_uri_mismatch", 400, "exchange_redirect_uri_mismatch"],
+    ["invalid_request", 400, "exchange_invalid_request"],
+    ["unrecognized-private-value", 400, "exchange"],
+    ["invalid_client&token=private", 400, "exchange"],
+    [null, 400, "exchange"],
+    ["server_error", 503, "exchange_unavailable"],
+    ["rate_limited", 429, "exchange_unavailable"],
+  ])(
+    "allowlists token endpoint error %s with HTTP %s",
+    async (providerCode, status, stage) => {
+      const b = await begin();
+      const fetcher = vi.fn(async () =>
+        Response.json(
+          {
+            error: providerCode,
+            error_description: "private-provider-description",
+            access_token: "private-token",
+            error_uri: "https://private.example",
+          },
+          { status },
+        ),
+      );
+      const error = await completeGoogleLogin(b.request, env(), {
+        fetch: fetcher,
+        keys,
+      }).catch((error) => error);
+      expect(googleFailure(env(), error).headers.get("Location")).toBe(
+        `/admin?google=failed&reason=${stage}`,
+      );
+      expect(await db.prepare("SELECT 1 FROM sessions").first()).toBeNull();
+      expect(
+        await db.prepare("SELECT 1 FROM oauth_transactions").first(),
+      ).toBeNull();
+      await expect(
+        completeGoogleLogin(b.request, env(), { fetch: fetcher, keys }),
+      ).rejects.toMatchObject({ stage: "transaction" });
+      expect(fetcher).toHaveBeenCalledTimes(1);
     },
   );
   it("does not reflect arbitrary errors or query text in failure redirects", async () => {

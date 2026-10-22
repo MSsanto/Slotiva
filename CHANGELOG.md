@@ -4,6 +4,14 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Token exchange error classification
+
+- Records owner evidence narrowing the login failure to the token exchange.
+- Distinguishes exact allowlisted Google error codes and connection/provider
+  availability without exposing descriptions, tokens or arbitrary response values.
+- Adds regression coverage for code mapping, non-reflection, no sessions and
+  transaction replay. The hosted cause remains pending a fresh diagnostic login.
+
 ## 2026-10-22 — Safe Google callback diagnosis
 
 - Replaces the undifferentiated login failure with fixed stage codes and

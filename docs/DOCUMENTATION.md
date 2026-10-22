@@ -130,3 +130,8 @@ and an unknown/prototype-key reason fallback. Local browser execution was blocke
 before assertions by a missing Playwright executable; its browser download returned
 an invalid archive. Browser acceptance must therefore be established by CI or a
 working browser installation, not claimed from this local attempt.
+
+Token-exchange regression cases cover exact allowlisted errors, unknown/malicious
+values, malformed responses, network failure, HTTP 429/5xx and code replay. They
+assert fixed redirects, no session, consumed transaction and no second exchange.
+Real Google token exchange remains an operator acceptance step.

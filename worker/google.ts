@@ -74,6 +74,12 @@ type LoginStage =
   | "origin"
   | "transaction"
   | "exchange"
+  | "exchange_invalid_client"
+  | "exchange_invalid_grant"
+  | "exchange_unauthorized_client"
+  | "exchange_redirect_uri_mismatch"
+  | "exchange_invalid_request"
+  | "exchange_unavailable"
   | "identity"
   | "authorization"
   | "session";
@@ -254,10 +260,41 @@ export async function completeGoogleLogin(
         }),
       });
     } catch {
+      stage = "exchange_unavailable";
       throw new HttpError(503, "Google temporariamente indisponível.");
     }
-    if (!response.ok)
+    if (!response.ok) {
+      // The provider body is untrusted. Reflect only these exact fixed codes,
+      // never error_description, error_uri or any other response value.
+      const providerError: unknown = await response.json().catch(() => null);
+      const code =
+        providerError &&
+        typeof providerError === "object" &&
+        "error" in providerError
+          ? providerError.error
+          : undefined;
+      switch (code) {
+        case "invalid_client":
+          stage = "exchange_invalid_client";
+          break;
+        case "invalid_grant":
+          stage = "exchange_invalid_grant";
+          break;
+        case "unauthorized_client":
+          stage = "exchange_unauthorized_client";
+          break;
+        case "redirect_uri_mismatch":
+          stage = "exchange_redirect_uri_mismatch";
+          break;
+        case "invalid_request":
+          stage = "exchange_invalid_request";
+          break;
+        default:
+          if (response.status >= 500 || response.status === 429)
+            stage = "exchange_unavailable";
+      }
       throw new HttpError(401, "Acesso Google recusado. Tente novamente.");
+    }
     let idToken: unknown;
     try {
       idToken = ((await response.json()) as { id_token?: unknown }).id_token;

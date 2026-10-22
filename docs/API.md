@@ -136,7 +136,13 @@ GET /api/admin/google/callback returns a 303 failure redirect to
 /admin?google=failed&reason=STAGE, with Cache-Control: no-store, no-referrer and
 OAuth transaction cookie deletion. STAGE is a fixed server classification:
 configuration, origin, transaction, exchange, identity, authorization or session.
-Unclassified failures use internal. Provider bodies, JWTs, query parameters,
+Token endpoint errors additionally allow exchange_invalid_client,
+exchange_invalid_grant, exchange_unauthorized_client,
+exchange_redirect_uri_mismatch, exchange_invalid_request and exchange_unavailable.
+Only exact allowlisted codes are recognized; arbitrary descriptions and unknown
+provider values fall back to exchange. Network failure, HTTP 429 or unclassified
+HTTP 5xx maps to exchange_unavailable.
+Unclassified failures use internal. Raw provider bodies, JWTs, query parameters,
 account identifiers, exception messages and SQL details are never reflected.
 The login UI maps known stages to Portuguese guidance and uses a generic fallback.
 Authorization is reported only after cryptographic identity verification; no

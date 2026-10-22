@@ -85,3 +85,9 @@ provider response, code, state, token, email or subject. A 403 from the verified
 principal check maps to authorization; identity validation failures stay identity.
 Unknown failures map to internal. Existing state, cookie and authorization checks
 remain mandatory; there is no diagnostic authentication bypass.
+
+Token-exchange diagnosis inspects the provider's error JSON only on unsuccessful
+responses, maps an exact allowlist to static reason codes, and discards all other
+fields. Unknown/malformed responses remain generic; network failures, HTTP 429 and
+unclassified 5xx responses use exchange_unavailable. No automatic retry reuses a
+consumed authorization code: the user must restart the full sign-in transaction.

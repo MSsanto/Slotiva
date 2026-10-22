@@ -315,3 +315,27 @@ URL and the displayed message, never a callback URL containing code or state.
 After an authorized master login, verify the master screen and reject an unrelated
 account. This diagnostic change has local automated coverage; hosted diagnosis and
 successful real OAuth remain pending until the operator supplies new evidence.
+
+### Token exchange detail — 2026-10-22
+
+The owner repeated sign-in and reported reason=exchange. This narrows failure to
+the code/token exchange or its response, before Google identity verification and
+master authorization. It does not prove an incorrect Client Secret.
+The next update distinguishes exact allowlisted Google error codes:
+
+| Reason | Next action |
+| --- | --- |
+| exchange_invalid_client | Check the matching public Client ID and Client Secret; re-enter the secret only in the named Preview's Wrangler prompt if incorrect. |
+| exchange_invalid_grant | Start a fresh login. If persistent, investigate exact redirect URI, client, code lifetime/reuse and PKCE. |
+| exchange_unauthorized_client | Check Web application client type and permitted OAuth flow. |
+| exchange_redirect_uri_mismatch | Check the registered exact callback and PUBLIC_ORIGIN. |
+| exchange_invalid_request | Investigate the token request parameters without logging credentials. |
+| exchange_unavailable | Restart after provider/network/rate-limit failure; investigate availability if persistent. |
+| exchange | Google returned an unclassified/malformed error or token response; do not assume the secret is wrong. |
+
+For this Preview the Client ID is the owner-supplied ID recorded above. Do not
+change MASTER_GOOGLE_SUBS to troubleshoot exchange errors. Never copy provider
+error descriptions, tokens or callback URLs into chat. Report only the final
+reason and displayed guidance after publishing this update.
+
+Reference: [Google Web server OAuth errors](https://developers.google.com/identity/protocols/oauth2/web-server).
