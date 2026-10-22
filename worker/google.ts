@@ -214,7 +214,8 @@ export async function completeGoogleLogin(
   request: Request,
   env: Env,
   deps: { fetch: typeof fetch; keys: JWTVerifyGetKey } = {
-    fetch,
+    // Native workerd fetch rejects the dependency object as its receiver.
+    fetch: (input, init) => globalThis.fetch(input, init),
     keys: googleKeys,
   },
 ) {

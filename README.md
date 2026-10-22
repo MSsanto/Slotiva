@@ -177,3 +177,9 @@ help distinguish setup failures without exposing raw Google responses, tokens,
 subjects or database errors. A configuration flag alone does
 not establish a successful login. See [callback contract](docs/API.md) and
 [human diagnosis](docs/HUMAN_VALIDATION.md).
+
+The default Google token transport wraps globalThis.fetch so workerd receives the
+correct global receiver. A runtime regression test bundles the actual Worker,
+starts OAuth against D1, and intercepts outbound transport without replacing
+native fetch. The previous dependency-object call failed before network I/O even
+though Node-based mock tests passed. Real hosted sign-in still requires acceptance.

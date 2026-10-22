@@ -148,3 +148,7 @@ The login UI maps known stages to Portuguese guidance and uses a generic fallbac
 Authorization is reported only after cryptographic identity verification; no
 specific subject, invitation or master membership is disclosed. No checks are
 bypassed and failures create no authenticated session.
+
+The native Worker token transport now preserves global fetch's receiver. Request,
+callback, credential and authorization contracts are unchanged; this fixes a
+pre-network runtime exception previously classified as exchange_unavailable.

@@ -339,3 +339,18 @@ error descriptions, tokens or callback URLs into chat. Report only the final
 reason and displayed guidance after publishing this update.
 
 Reference: [Google Web server OAuth errors](https://developers.google.com/identity/protocols/oauth2/web-server).
+
+### Native fetch receiver fix — 2026-10-22
+
+The owner next reported exchange_unavailable. A new local test bundling the actual
+Worker in workerd reproduced failure before any outbound token request. The default
+deps.fetch held native fetch as an object method, giving it an invalid receiver.
+Replacing that default with an arrow wrapper calling globalThis.fetch makes the
+same test reach the intercepted token endpoint. This establishes a code defect and
+its local correction; the hosted login still needs confirmation after publication.
+
+Pull feat/product-readiness, publish its Preview and repeat a fresh master login.
+Keep the current Client Secret and master subject unchanged for this verification.
+If it fails, report only the safe final reason. A new provider/authorization error
+may now be visible because the request actually reaches the next stage. Do not
+claim successful real consent, credentials or session from this transport test.

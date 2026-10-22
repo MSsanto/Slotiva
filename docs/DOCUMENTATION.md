@@ -135,3 +135,16 @@ Token-exchange regression cases cover exact allowlisted errors, unknown/maliciou
 values, malformed responses, network failure, HTTP 429/5xx and code replay. They
 assert fixed redirects, no session, consumed transaction and no second exchange.
 Real Google token exchange remains an operator acceptance step.
+
+A separate native-runtime OAuth regression bundles worker/index.ts into Miniflare,
+applies all migrations, starts a real OAuth transaction and invokes the callback
+with its browser cookie. It leaves the production transport dependency default in
+place, intercepts only outbound I/O, checks token request parameters, propagates a
+safe provider refusal, creates no session and prevents a second exchange on replay.
+The test failed on the old receiver with zero outbound exchanges and passed after
+the global fetch wrapper. Provider interception is not real Google authentication.
+
+Validation for the receiver fix: 74 Worker tests across five files, production
+build, lint and format checks passed locally. The new runtime test was observed
+failing before the fix and passing after it. Browser/real Google acceptance is
+not implied by these results.

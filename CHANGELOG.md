@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Fix native Cloudflare fetch receiver in OAuth exchange
+
+- Fixes the production fetch dependency default: call globalThis.fetch through an
+  arrow wrapper so the dependency object is never passed as the native receiver.
+- Reproduces the pre-network failure with the actual bundled Worker in workerd;
+  the same regression passes after the fix. Existing mock tests missed the issue.
+- Preserves credentials, account authorization, PKCE and one-use state. Hosted
+  sign-in requires a fresh Preview deployment and owner confirmation.
+
 ## 2026-10-22 — Token exchange error classification
 
 - Records owner evidence narrowing the login failure to the token exchange.

@@ -91,3 +91,16 @@ responses, maps an exact allowlist to static reason codes, and discards all othe
 fields. Unknown/malformed responses remain generic; network failures, HTTP 429 and
 unclassified 5xx responses use exchange_unavailable. No automatic retry reuses a
 consumed authorization code: the user must restart the full sign-in transaction.
+
+## Native Worker transport receiver
+
+The production dependency default must use an arrow wrapper that calls
+`globalThis.fetch(input, init)`. Storing native fetch directly on the dependency
+object and calling deps.fetch supplies that object as this; workerd rejects the
+receiver before outbound I/O. Node fetch and injected mocks do not enforce that
+constraint, so their successful tests were insufficient. The new bundled-Worker
+Miniflare test exercises the native transport with an intercepted provider, D1
+state/browser binding and one-use callback. No credentials, verification rules,
+endpoints or account permissions change.
+
+Reference: [workerd receiver requirements](https://github.com/cloudflare/workerd/issues/6904).
