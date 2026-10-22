@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   api,
+  servicePriceLabel,
   errorMessage,
   formatDate,
   formatDeadline,
@@ -59,13 +60,31 @@ export default function BookingPage() {
     queryFn: () =>
       api<{ today: string; horizonDays: number }>(publicPath(slug, "calendar")),
   });
+  const service =
+    services.data?.find((s) => s.id === serviceId) ?? services.data?.[0];
+  const selectedId = service?.id ?? "";
   const slots = useQuery({
-    queryKey: ["availability", slug ?? "demo", date, serviceId],
+    queryKey: [
+      "availability",
+      slug ?? "demo",
+      date,
+      selectedId,
+      service?.version,
+      rescheduling ? confirmed?.id : null,
+    ],
     queryFn: () =>
       api<string[]>(
-        publicPath(slug, `availability?date=${date}&serviceId=${serviceId}`),
+        rescheduling && confirmed
+          ? `/bookings/${confirmed.id}/availability?date=${date}`
+          : publicPath(
+              slug,
+              `availability?date=${date}&serviceId=${encodeURIComponent(selectedId)}`,
+            ),
+        rescheduling && confirmed
+          ? { headers: { "X-Cancel-Token": confirmed.cancelToken } }
+          : {},
       ),
-    enabled: !!date,
+    enabled: !!date && (!!service || rescheduling),
   });
   const receiptState = useQuery({
     queryKey: ["receipt", confirmed?.id],
@@ -80,12 +99,17 @@ export default function BookingPage() {
   const current = receiptState.data ?? confirmed;
   const active =
     current?.status === "pending_approval" || current?.status === "confirmed";
-  const service = services.data?.find((s) => s.id === serviceId);
   const booking = useMutation({
     mutationFn: (contact: Contact) =>
       api<Receipt>(publicPath(slug, "bookings"), {
         method: "POST",
-        body: JSON.stringify({ ...contact, serviceId, date, time }),
+        body: JSON.stringify({
+          ...contact,
+          serviceId: selectedId,
+          serviceVersion: service?.version,
+          date,
+          time,
+        }),
       }),
     onSuccess: (receipt) => {
       queryClient.removeQueries({ queryKey: ["receipt", receipt.id] });
@@ -95,6 +119,7 @@ export default function BookingPage() {
       void queryClient.invalidateQueries({ queryKey: ["availability"] });
     },
     onError: () => {
+      void services.refetch();
       setTime("");
       void queryClient.invalidateQueries({ queryKey: ["availability"] });
     },
@@ -257,11 +282,17 @@ export default function BookingPage() {
           </p>
         )}
         <div className="receipt">
-          <strong>
-            {services.data?.find((s) => s.id === confirmed.serviceId)?.name}
-          </strong>
+          <strong>{confirmed.serviceName}</strong>
           <p>
             {formatDate(confirmed.date)} às {confirmed.time}
+          </p>
+          <p>
+            {confirmed.serviceDuration} min
+            {servicePriceLabel(
+              confirmed.servicePriceMode,
+              confirmed.servicePrice,
+            ) &&
+              ` · ${servicePriceLabel(confirmed.servicePriceMode, confirmed.servicePrice)}`}
           </p>
           <small>Horário de Brasília · Nenhum e-mail foi enviado.</small>
         </div>
@@ -375,13 +406,13 @@ export default function BookingPage() {
             <div className="services">
               {services.data?.map((s) => (
                 <label
-                  className={`service ${s.id === serviceId ? "selected" : ""}`}
+                  className={`service ${s.id === selectedId ? "selected" : ""}`}
                   key={s.id}
                 >
                   <input
                     type="radio"
                     name="service"
-                    checked={s.id === serviceId}
+                    checked={s.id === selectedId}
                     onChange={() => {
                       setServiceId(s.id);
                       setTime("");
@@ -391,8 +422,9 @@ export default function BookingPage() {
                   <span>
                     <strong>{s.name}</strong>
                     <small>
-                      {s.duration} min ·{" "}
-                      {s.price ? `R$ ${s.price},00` : "Gratuito"}
+                      {s.duration} min
+                      {servicePriceLabel(s.priceMode, s.price) &&
+                        ` · ${servicePriceLabel(s.priceMode, s.price)}`}
                     </small>
                   </span>
                 </label>
@@ -400,7 +432,13 @@ export default function BookingPage() {
             </div>
             <p className="hint">{service?.description}</p>
           </fieldset>
-          {schedule()}
+          {!services.data?.length && (
+            <p role="status">
+              Nenhum serviço disponível no momento. Entre em contato com o
+              profissional.
+            </p>
+          )}
+          {service && schedule()}
           <form
             noValidate
             onSubmit={handleSubmit((contact) => {
@@ -467,7 +505,11 @@ export default function BookingPage() {
                 className="primary"
                 type="submit"
                 disabled={
-                  booking.isPending || !date || !time || slots.isFetching
+                  booking.isPending ||
+                  !service ||
+                  !date ||
+                  !time ||
+                  slots.isFetching
                 }
               >
                 {booking.isPending ? "Enviando…" : "Solicitar agendamento"}{" "}

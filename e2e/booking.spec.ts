@@ -326,6 +326,10 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
   ].map((b) => ({
     ...b,
     serviceId: "discovery",
+    serviceName: "Conversa inicial",
+    serviceDuration: 30,
+    servicePriceMode: "free",
+    servicePrice: 0,
     date: "2026-10-30",
     time: "15:00",
     email: "",
@@ -346,7 +350,15 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
       "/api/admin/bookings": bookings,
       "/api/admin/hours": [],
       "/api/admin/services": [
-        { id: "discovery", name: "Conversa inicial", duration: 30 },
+        {
+          id: "discovery",
+          name: "Conversa inicial",
+          duration: 30,
+          priceMode: "free",
+          price: 0,
+          version: 1,
+          active: true,
+        },
       ],
       "/api/admin/profile": {
         id: "fixture",
@@ -394,4 +406,161 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
     "Nenhuma reserva cancelada.",
   );
   expect(writes).toBe(0);
+});
+
+test("professional edits service duration and price visibility while existing bookings keep their terms", async ({
+  page,
+}) => {
+  await page.goto("/admin");
+  await page.getByLabel("Senha administrativa").fill("test-password-long");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  const settings = page.getByRole("region", {
+    name: "Configuração de serviços",
+  });
+  await settings.getByRole("button", { name: "Adicionar serviço" }).click();
+  await settings.getByLabel("Nome do serviço").fill("Atendimento catálogo");
+  await settings.getByLabel("Descrição").fill("Descrição personalizada");
+  await settings.getByLabel("Duração (minutos)").fill("50");
+  await settings.getByLabel("Exibição do valor").selectOption("paid");
+  await settings.getByLabel("Valor (R$)").fill("175.50");
+  await settings.getByRole("button", { name: "Salvar serviço" }).click();
+  await expect(settings.getByRole("status")).toHaveText(
+    "Lista de serviços atualizada.",
+  );
+  const list = await (await page.request.get("/api/admin/services")).json();
+  const service = list.find(
+    (s: { name: string }) => s.name === "Atendimento catálogo",
+  );
+  expect(service).toMatchObject({
+    duration: 50,
+    price: 175.5,
+    priceMode: "paid",
+    version: 1,
+  });
+  const customer = await page.context().newPage();
+  await customer.goto("/");
+  let card = customer
+    .locator(".service")
+    .filter({ hasText: "Atendimento catálogo" });
+  await expect(card).toContainText("50 min");
+  await expect(card).toContainText(/175,50/);
+  await card.click();
+  await expect(
+    customer.getByText("Descrição personalizada", { exact: true }),
+  ).toBeVisible();
+  const calendar = await (await page.request.get("/api/calendar")).json();
+  let date = "",
+    time = "";
+  for (let offset = 3; offset <= 14; offset++) {
+    const d = new Date(`${calendar.today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + offset);
+    const key = d.toISOString().slice(0, 10);
+    const slots = await (
+      await page.request.get(
+        `/api/availability?date=${key}&serviceId=${service.id}`,
+      )
+    ).json();
+    if (slots.length) {
+      date = key;
+      time = slots[0];
+      break;
+    }
+  }
+  expect(date).not.toBe("");
+  const response = await page.request.post("/api/bookings", {
+    data: {
+      serviceId: service.id,
+      serviceVersion: 1,
+      date,
+      time,
+      name: "Catalog fixture",
+      email: "catalog@example.com",
+    },
+  });
+  expect(response.status()).toBe(201);
+  const receipt = await response.json();
+  await settings
+    .getByRole("button", { name: "Editar Atendimento catálogo", exact: true })
+    .click();
+  await settings.getByLabel("Nome do serviço").fill("Atendimento atualizado");
+  await settings.getByLabel("Duração (minutos)").fill("90");
+  await settings.getByLabel("Exibição do valor").selectOption("free");
+  await settings.getByRole("button", { name: "Salvar serviço" }).click();
+  await expect(
+    settings.getByRole("button", {
+      name: "Editar Atendimento atualizado",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await customer.reload();
+  card = customer
+    .locator(".service")
+    .filter({ hasText: "Atendimento atualizado" });
+  await expect(card).toContainText("90 min");
+  await expect(card).toContainText("Gratuito");
+  await settings
+    .getByRole("button", { name: "Editar Atendimento atualizado", exact: true })
+    .click();
+  await settings.getByLabel("Exibição do valor").selectOption("hidden");
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+  await settings.getByRole("button", { name: "Salvar serviço" }).click();
+  await expect(
+    settings.getByRole("button", {
+      name: "Editar Atendimento atualizado",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await customer.reload();
+  card = customer
+    .locator(".service")
+    .filter({ hasText: "Atendimento atualizado" });
+  await expect(card).toContainText("90 min");
+  await expect(card).not.toContainText("R$");
+  await expect(card).not.toContainText("Gratuito");
+  const stored = await (
+    await page.request.get(`/api/bookings/${receipt.id}`, {
+      headers: { "X-Cancel-Token": receipt.cancelToken },
+    })
+  ).json();
+  expect(stored).toMatchObject({
+    serviceName: "Atendimento catálogo",
+    serviceDuration: 50,
+    servicePrice: 175.5,
+    servicePriceMode: "paid",
+  });
+  await settings
+    .getByRole("button", { name: "Editar Atendimento atualizado", exact: true })
+    .click();
+  await settings.getByLabel("Disponível para novos agendamentos").uncheck();
+  await settings.getByRole("button", { name: "Salvar serviço" }).click();
+  await expect(
+    settings.getByText(/Atendimento atualizado.*Desativado/),
+  ).toBeVisible();
+  await customer.reload();
+  await expect(
+    customer.locator(".service").filter({ hasText: "Atendimento atualizado" }),
+  ).toHaveCount(0);
+  expect(
+    (
+      await page.request.delete(`/api/bookings/${receipt.id}`, {
+        headers: { "X-Cancel-Token": receipt.cancelToken },
+      })
+    ).status(),
+  ).toBe(204);
+  await customer.close();
+});
+
+test("empty service catalog explains unavailability and prevents new requests", async ({
+  page,
+}) => {
+  await page.route("**/api/services", (route) => route.fulfill({ json: [] }));
+  await page.goto("/");
+  await expect(page.getByRole("status")).toHaveText(
+    "Nenhum serviço disponível no momento. Entre em contato com o profissional.",
+  );
+  await expect(
+    page.getByRole("button", { name: /Solicitar agendamento/ }),
+  ).toBeDisabled();
+  await expect(page.locator(".days button")).toHaveCount(0);
 });

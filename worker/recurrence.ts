@@ -1,3 +1,4 @@
+import { bookingService } from "./services";
 import { z } from "zod";
 import { bookingSchema, output, window } from "./booking";
 import { digest, randomToken, type Principal } from "./security";
@@ -45,13 +46,22 @@ export async function createSeries(
   const hash = await digest(JSON.stringify(data));
   const replay = await existing(env, professionalId, data.requestId, hash);
   if (replay) return replay;
+  const service = await bookingService(
+    env,
+    professionalId,
+    data.serviceId,
+    data.serviceVersion,
+  );
   const step =
     data.frequency === "fortnightly" ? 14 : data.frequency === "weekly" ? 7 : 0;
   const occurrences = Array.from({ length: data.count }, (_, i) => {
     const date = new Date(`${data.date}T12:00:00Z`);
     date.setUTCDate(date.getUTCDate() + i * step);
     const key = date.toISOString().slice(0, 10);
-    return { date: key, ...window(key, data.time, data.serviceId, true) };
+    return {
+      date: key,
+      ...window(key, data.time, service.duration_minutes, true),
+    };
   });
   const id = crypto.randomUUID();
   const statements = [
@@ -70,8 +80,8 @@ export async function createSeries(
   for (const w of occurrences)
     statements.push(
       env.DB.prepare(
-        `INSERT INTO bookings(id,professional_id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,status,decided_at,source,series_id)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'confirmed',unixepoch(),'professional',?)`,
+        `INSERT INTO bookings(id,professional_id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,status,decided_at,source,series_id,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'confirmed',unixepoch(),'professional',?,?,?,?,?,?,?)`,
       ).bind(
         crypto.randomUUID(),
         professionalId,
@@ -86,6 +96,12 @@ export async function createSeries(
         data.email,
         await digest(randomToken()),
         id,
+        service.name,
+        service.description,
+        service.duration_minutes,
+        service.price_mode,
+        service.price_cents,
+        service.version,
       ),
     );
   try {

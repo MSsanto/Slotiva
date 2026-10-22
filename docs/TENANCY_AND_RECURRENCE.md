@@ -68,8 +68,9 @@ invitation is sent; awaiting_integration is not delivery.
 
 ## Deliberate limits and verification
 
-Services are still the shared 30/45/60-minute catalog and 15-minute buffer, with
-30-minute starts. Per-professional service names/durations/pricing, date exceptions,
+Services are now tenant-owned with immutable booking snapshots; see
+[ADR 010](SERVICE_CATALOG.md). The 15-minute buffer and 30-minute starts remain.
+Date exceptions,
 other timezones, conflict previews before submission and series-change proposals
 remain work. The current conflict result rejects the entire series; it does not
 list every conflicting date. UI shows finite count and cancellation scope before

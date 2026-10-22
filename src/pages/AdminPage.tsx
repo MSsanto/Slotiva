@@ -1,3 +1,4 @@
+import ServiceSettings from "./ServiceSettings";
 import AgreedBookings from "./AgreedBookings";
 import { Navigate } from "react-router-dom";
 import ProfessionalSettings from "./ProfessionalSettings";
@@ -10,9 +11,9 @@ import {
   formatDate,
   formatDeadline,
   statusLabel,
+  servicePriceLabel,
   type Booking,
   type Hours,
-  type Service,
 } from "../api";
 const googleFailureMessages = new Map(
   Object.entries({
@@ -91,10 +92,7 @@ export default function AdminPage() {
     queryFn: () => api<Hours[]>("/admin/hours"),
     enabled: session.isSuccess,
   });
-  const services = useQuery({
-    queryKey: ["admin", "services"],
-    queryFn: () => api<Service[]>("/admin/services"),
-  });
+
   const cancelSeries = useMutation({
     mutationFn: (booking: Booking) =>
       api(`/admin/series/${booking.seriesId}?scope=all`, {
@@ -321,10 +319,14 @@ export default function AdminPage() {
                   {formatDate(b.date)} · {b.time}
                 </strong>
                 <p>
-                  {services.data?.find((s) => s.id === b.serviceId)?.name} ·{" "}
-                  {b.name}
+                  {b.serviceName} · {b.name}
                 </p>
-                <small>{b.email}</small>
+                <small>
+                  {b.serviceDuration} min
+                  {servicePriceLabel(b.servicePriceMode, b.servicePrice) &&
+                    ` · ${servicePriceLabel(b.servicePriceMode, b.servicePrice)}`}
+                </small>
+                <p>{b.email}</p>
                 <p>
                   {statusLabel(b.status)}
                   {b.seriesId ? " · Horário combinado" : ""}
@@ -403,6 +405,7 @@ export default function AdminPage() {
         )}
       </div>
       <AgreedBookings />
+      <ServiceSettings />
       <ProfessionalSettings />
       {hours.data && (
         <form

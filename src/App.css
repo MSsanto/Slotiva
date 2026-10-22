@@ -623,7 +623,8 @@ h2:focus {
   color: #60335c;
 }
 .hours input:not([type="checkbox"]),
-.hours select {
+.hours select,
+.hours textarea {
   max-width: 100%;
   width: 100%;
   padding: 12px;
@@ -669,4 +670,14 @@ h2:focus {
   background: #284f42;
   border-color: #284f42;
   color: #fff;
+}
+
+.service-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid #dfe5d9;
+  padding: 12px 0;
 }

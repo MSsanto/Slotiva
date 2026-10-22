@@ -20,6 +20,7 @@ function day() {
 }
 const payload = (time = "09:00", serviceId = "consulting") => ({
   serviceId,
+  serviceVersion: 1,
   date: day(),
   time,
   name: "Demo",
@@ -118,7 +119,7 @@ describe("Cloudflare Worker + D1", () => {
     const statement = () =>
       db
         .prepare(
-          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at) VALUES (?,'consulting',?,0,9999999999,540,600,615,'Demo','demo@example.com','hash',unixepoch()+86400)`,
+          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version) VALUES (?,'consulting',?,0,9999999999,540,600,615,'Demo','demo@example.com','hash',unixepoch()+86400,'Consultoria individual','Tempo dedicado para transformar ideias em próximos passos.',60,'paid',15000,1)`,
         )
         .bind(crypto.randomUUID(), day());
     const results = await Promise.allSettled([
@@ -304,8 +305,8 @@ async function expiredFixture(deadlineOffset = 0) {
   try {
     await db
       .prepare(
-        `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,created_at,approval_expires_at)
-      VALUES (?,'consulting',?,0,9999999999,540,600,615,'Expired','expired@example.com',?,unixepoch()-86400+?,unixepoch()+?)`,
+        `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,created_at,approval_expires_at,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version)
+      VALUES (?,'consulting',?,0,9999999999,540,600,615,'Expired','expired@example.com',?,unixepoch()-86400+?,unixepoch()+?,'Consultoria individual','Tempo dedicado para transformar ideias em próximos passos.',60,'paid',15000,1)`,
       )
       .bind(
         id,
@@ -330,8 +331,8 @@ describe("professional approval lifecycle", () => {
     await expect(
       db
         .prepare(
-          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at)
-      VALUES (?,'consulting',?,0,unixepoch()+172799,540,600,615,'Demo','demo@example.com','hash',unixepoch()+86400)`,
+          `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version)
+      VALUES (?,'consulting',?,0,unixepoch()+172799,540,600,615,'Demo','demo@example.com','hash',unixepoch()+86400,'Consultoria individual','Tempo dedicado para transformar ideias em próximos passos.',60,'paid',15000,1)`,
         )
         .bind(crypto.randomUUID(), day())
         .run(),
@@ -683,6 +684,51 @@ describe("migration and scheduled expiry", () => {
     await apply("migrations/0003_google_login.sql");
     await apply("migrations/0004_professional_tenants.sql");
     await apply("migrations/0005_professional_recurrence.sql");
+    await legacy.exec(
+      "INSERT INTO booking_series(id,professional_id,request_id,request_hash,frequency,occurrence_count,actor_subject) VALUES('migration-series','demo','migration-request','hash','once',1,'fixture')",
+    );
+    await legacy
+      .prepare(
+        `INSERT INTO bookings(id,professional_id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,status,decided_at,source,series_id)
+      VALUES('manual-legacy','demo','discovery',?,0,9999999999,660,690,705,'Fixture','','original-hash','confirmed',unixepoch(),'professional','migration-series')`,
+      )
+      .bind(day())
+      .run();
+    const tables = [
+      "bookings",
+      "occupied_slots",
+      "booking_series",
+      "booking_events",
+      "notification_outbox",
+    ];
+    const before = await Promise.all(
+      tables.map((t) => legacy.prepare(`SELECT * FROM ${t} ORDER BY 1`).all()),
+    );
+    await apply("migrations/0006_professional_services.sql");
+    for (let i = 0; i < tables.length; i++) {
+      const after = await legacy
+        .prepare(`SELECT * FROM ${tables[i]} ORDER BY 1`)
+        .all();
+      expect(after.results).toEqual(
+        before[i].results.map((row) =>
+          tables[i] === "bookings" ? expect.objectContaining(row) : row,
+        ),
+      );
+    }
+    expect(
+      (await legacy.prepare("PRAGMA foreign_key_check").all()).results,
+    ).toEqual([]);
+    expect(
+      await legacy
+        .prepare(
+          "SELECT service_name,service_duration,service_price_cents FROM bookings WHERE id='legacy'",
+        )
+        .first(),
+    ).toMatchObject({
+      service_name: "Consultoria individual",
+      service_duration: 60,
+      service_price_cents: 15000,
+    });
     expect(
       (await legacy
         .prepare("SELECT status FROM bookings WHERE id='legacy'")
@@ -697,12 +743,12 @@ describe("migration and scheduled expiry", () => {
       (await legacy
         .prepare("SELECT count(*) AS n FROM occupied_slots")
         .first<{ n: number }>())!.n,
-    ).toBe(5);
+    ).toBe(8);
     expect(
       (await legacy
         .prepare("SELECT count(*) AS n FROM notification_outbox")
         .first<{ n: number }>())!.n,
-    ).toBe(0);
+    ).toBe(1);
   });
   it("expires without an HTTP request and remains safe on repeated scheduled execution", async () => {
     const { id } = await expiredFixture(-1);

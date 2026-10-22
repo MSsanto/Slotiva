@@ -15,16 +15,42 @@ profile is hidden. `/p/{slug}` is the corresponding frontend URL.
 
 | Method and route (prefix `/api/public/{slug}`) | Contract                                                                                   |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| GET /services                                  | Fixed discovery (30), consulting (60), review (45 minutes) catalog                         |
+| GET /services                                  | Active services owned by this professional; see service contract below                         |
 | GET /calendar                                  | today, timezone, horizonDays=14, minimumNoticeHours=48, approvalWindowHours=24             |
 | GET /availability?date=YYYY-MM-DD&serviceId=…  | Free HH:mm starts; tenant hours, active holds and 48h notice applied                       |
-| POST /bookings                                 | `{serviceId,date,time,name,email}`; 201 pending receipt plus one-time returned cancelToken |
+| POST /bookings                                 | `{serviceId,serviceVersion,date,time,name,email}`; 201 pending receipt plus one-time returned cancelToken |
 
 The unscoped equivalents `/api/services`, `/api/calendar`, `/api/availability`
 and POST `/api/bookings` are demo compatibility routes, disabled in Google mode.
 Public inputs are strict; source/status/tenant cannot bypass professional approval.
 Date keys use America/Sao_Paulo, weekday 0=Monday, 30-minute starts and 15-minute
 buffer. Invalid dates, starts outside 14 days or under 48 elapsed hours fail.
+
+## Service catalog
+
+GET services returns `{id,name,description,duration,priceMode,price,version,active}`.
+Public GET includes only active entries; administrative GET includes inactive ones.
+Each professional starts with the legacy discovery/consulting/review defaults and
+can edit or deactivate them. IDs are scoped by the server-selected professional.
+
+POST `/api/admin/services` creates a service with
+`{name,description,duration,priceMode,priceCents,active}`. PUT
+`/api/admin/services/{id}` requires the same fields plus the current `version`.
+Names are trimmed, 1–100 characters; descriptions at most 500. Duration is an
+integer from 15 to 240 minutes, divisible by 5. `priceMode` is `free` (cents=0),
+`paid` (integer cents 1–99999999) or `hidden` (cents=null). Public `price` is BRL
+major units or null; hidden means omit price text, not display "free". There is no
+payment processing. Active is a boolean. Inputs are strict and owner IDs are not
+accepted. Create returns 201; edit returns 200 and increments version. Stale or
+inaccessible edits return 409. Master credentials cannot use these routes.
+
+New public and professional bookings require the displayed serviceVersion. Stale
+versions return 409; inactive/foreign/missing services return 404. A database
+trigger rechecks the service version and complete terms during INSERT, closing
+the read/write race. Each booking stores an immutable name, description, duration,
+price mode, integer cents and service version. Editing/deactivation affects new
+bookings only. Existing occupancy, approval and recurring occurrences retain their
+original terms. No hard-delete service endpoint exists.
 
 ## Customer capability
 
@@ -36,7 +62,13 @@ cancels active requests/bookings. Inactive professionals hide their receipts.
 There is no recovery link or persistent customer session; tokens stay in browser
 memory. A contact value or booking ID alone grants no access.
 
-Booking output: id, serviceId, date, time, name, email, status,
+GET `/api/bookings/{uuid}/availability?date=YYYY-MM-DD` requires the same capability
+and a pending request. It returns starts using that booking's original duration,
+even if its service was edited or deactivated. PUT also uses the original duration;
+the public catalog cannot change the receipt or remapping duration.
+
+Booking output: id, serviceId, serviceName, serviceDescription, serviceDuration,
+servicePriceMode, servicePrice (BRL or null), serviceVersion, date, time, name, email, status,
 approvalExpiresAt (epoch seconds or null), version, source (`public` or
 `professional`), seriesId (UUID or null). Customer creation also returns cancelToken.
 No administrative listing is public.
@@ -90,7 +122,7 @@ Requires the professional role. Every route below derives tenant from the sessio
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | GET /api/admin/profile                             | Own protected profile                                                                                   |
 | PUT /api/admin/profile                             | Own branding + version; identity/slug/status edits rejected                                             |
-| GET /api/admin/services                            | Fixed service catalog                                                                                   |
+| GET /api/admin/services                            | Own catalog including inactive services                                                                                   |
 | GET /api/admin/bookings                            | Own full history, sorted by date/time                                                                   |
 | GET /api/admin/hours                               | Enabled weekdays as `{weekday,opens,closes}`                                                            |
 | PUT /api/admin/hours                               | `{weekdays:[0…6],opens,closes}`; atomic seven-day update; conflicts with future reservations return 409 |
@@ -100,7 +132,7 @@ Requires the professional role. Every route below derives tenant from the sessio
 | DELETE /api/admin/series/{uuid}?scope=all            | Explicitly cancel every future confirmed encounter of the owned series; preserve past; 204 |
 | DELETE /api/admin/series/{uuid}?fromBookingId={uuid} | Compatibility: cancel selected/later future encounters; preserve earlier; 204 |
 
-Series input: `{requestId,serviceId,date,time,name,email,frequency,count}`.
+Series input: `{requestId,serviceId,serviceVersion,date,time,name,email,frequency,count}`.
 requestId is a caller-generated UUID for deduplication; frequency is once, weekly
 or fortnightly; count 1–26 (once requires 1). Email may be empty. Starts are in
 the future, within 366 calendar days; same local HH:mm every 7 or 14 days. The

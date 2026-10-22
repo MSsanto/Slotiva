@@ -16,6 +16,9 @@ export default function AgreedBookings() {
         method: "POST",
         body: JSON.stringify({ ...data, requestId }),
       }),
+    onError: () => {
+      void services.refetch();
+    },
     onSuccess: (data) => {
       setSaved(
         `${data.bookings.length} encontro(s) confirmado(s) na agenda. Nenhum e-mail ou convite foi enviado.`,
@@ -36,6 +39,9 @@ export default function AgreedBookings() {
           name: String(data.get("name")),
           email: String(data.get("email")),
           serviceId: String(data.get("serviceId")),
+          serviceVersion: services.data?.find(
+            (s) => s.id === data.get("serviceId"),
+          )?.version,
           date: String(data.get("date")),
           time: String(data.get("time")),
           frequency,
@@ -65,11 +71,13 @@ export default function AgreedBookings() {
       <label>
         Tipo de encontro
         <select name="serviceId" required>
-          {services.data?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} · {s.duration} min
-            </option>
-          ))}
+          {services.data
+            ?.filter((s) => s.active)
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} · {s.duration} min
+              </option>
+            ))}
         </select>
       </label>
       <div className="fields">
@@ -114,7 +122,7 @@ export default function AgreedBookings() {
       </p>
       <button
         className="primary"
-        disabled={save.isPending || !services.data?.length}
+        disabled={save.isPending || !services.data?.some((s) => s.active)}
       >
         {save.isPending ? "Cadastrando…" : "Confirmar encontros combinados"}
       </button>

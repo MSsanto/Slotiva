@@ -14,6 +14,12 @@ export interface BookingRow {
   source: "public" | "professional";
   series_id: string | null;
   service_id: string;
+  service_name: string;
+  service_description: string;
+  service_duration: number;
+  service_price_mode: "free" | "paid" | "hidden";
+  service_price_cents: number | null;
+  service_version: number;
   date: string;
   weekday: number;
   starts_at: number;

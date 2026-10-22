@@ -7,6 +7,7 @@
 | [Product requirements](SLOTIVA_DOCUMENTACAO_PRODUTO_V1.md)    | Decisions and target behavior; implementation states explicit |
 | [Google identity — ADR 008](GOOGLE_AUTH.md)                   | Verified OAuth and role/invitation authorization              |
 | [Tenancy and recurrence — ADR 009](TENANCY_AND_RECURRENCE.md) | Ownership, removal and psychologist's agreed-time workflow    |
+| [Service catalog — ADR 010](SERVICE_CATALOG.md) | Editable terms, booking snapshots and schema release boundary |
 | [Human validation](HUMAN_VALIDATION.md)                       | Isolated D1/OAuth setup and acceptance before release         |
 | [Approval workflow](APPROVAL_WORKFLOW.md)                     | State machine, temporal limits, atomicity and migration       |
 | [Cloudflare architecture — ADR 001](ADR-001-cloudflare.md)    | Original backend replacement                                  |
@@ -22,5 +23,7 @@ approval/documentation work with Google identity, master management, tenant page
 and finite professional-led recurrence. Email delivery, recovery and Google
 Calendar remain pending. The owner reported successful remote migrations 0001–0005
 on the dedicated homologation D1 on 2026-10-21 and then confirmed hosted API
-health and disabled Google/password login from the notebook. Real Google
-configuration and acceptance remain pending. No production release is established.
+health and disabled Google/password login from the notebook. The owner subsequently reported successful real Google sign-in, professional
+creation and approval/cancellation checks. Service editing and migration 0006 are
+implemented and locally tested; their remote application and hosted acceptance
+remain pending. No production release is established.

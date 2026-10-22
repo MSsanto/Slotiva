@@ -4,6 +4,20 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Editable professional service catalogs
+
+- Adds per-professional service creation, editing and deactivation: names,
+  descriptions, 15–240 minute durations in 5-minute steps, and paid/free/hidden
+  pricing. Public cards and agreed-booking selectors use the owned active catalog.
+- Stores immutable service terms on bookings, requires service versions on new
+  requests and guards insert/edit races in D1. Existing receipts, occupancy and
+  pending rescheduling retain original terms after service edits/deactivation.
+- Migration 0006 seeds defaults and rebuilds bookings while preserving occupancy,
+  history, series and outbox. Occupancy supports the full 240-minute maximum.
+- Adds tenant, validation, concurrency-version, historical migration and browser
+  coverage. Documents a private backup and coordinated homologation-only release;
+  remote migration and hosted owner acceptance remain pending.
+
 ## 2026-10-22 — Separate cancelled reservations from the working agenda
 
 - Adds Agenda and Cancelados tabs with counts, empty states and keyboard support.

@@ -1,3 +1,10 @@
+import {
+  listServices,
+  bookingService,
+  saveService,
+  createServiceSchema,
+  editServiceSchema,
+} from "./services";
 import { createSeries, cancelSeries, seriesSchema } from "./recurrence";
 import {
   professionalBySlug,
@@ -29,7 +36,6 @@ import {
   moveSchema,
   output,
   requireNotice,
-  services,
   today,
   toMinutes,
   window,
@@ -91,6 +97,37 @@ async function getHours(env: Env, professionalId: string) {
     closes: clock(r.closes),
   }));
 }
+async function available(
+  env: Env,
+  professionalId: string,
+  date: string,
+  durationMinutes: number,
+) {
+  const { weekday } = window(date, "09:00", durationMinutes);
+  const hours = await env.DB.prepare(
+    "SELECT * FROM weekly_hours WHERE professional_id=? AND weekday=? AND enabled=1",
+  )
+    .bind(professionalId, weekday)
+    .first<HoursRow>();
+  if (!hours) return [];
+  const occupied = await env.DB.prepare(
+    "SELECT minute FROM occupied_slots WHERE professional_id=? AND date=?",
+  )
+    .bind(professionalId, date)
+    .all<{ minute: number }>();
+  const set = new Set(occupied.results.map((s) => s.minute));
+  const duration = durationMinutes + 15;
+  const result = [];
+  for (let start = hours.opens; start + duration <= hours.closes; start += 30) {
+    let free = true;
+    for (let m = start; m < start + duration; m += 15)
+      if (set.has(m)) free = false;
+    const startsAt = Date.parse(`${date}T${clock(start)}:00-03:00`) / 1000;
+    if (free && startsAt >= Math.floor(Date.now() / 1000) + 48 * 3600)
+      result.push(clock(start));
+  }
+  return result;
+}
 async function route(request: Request, env: Env) {
   const url = new URL(request.url),
     method = request.method;
@@ -117,7 +154,7 @@ async function route(request: Request, env: Env) {
     throw new HttpError(404, "Use o link do seu profissional.");
   }
   if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
-  if (path === "/api/services" && method === "GET") return json(services);
+
   if (path === "/api/calendar" && method === "GET")
     return json({
       today: today(),
@@ -133,7 +170,13 @@ async function route(request: Request, env: Env) {
     });
   if (!env.DB)
     throw new HttpError(503, "Banco da agenda ainda não configurado.");
+  if (path === "/api/services" && method === "GET")
+    return json(await listServices(env, professionalId));
   if (path === "/api/health" && method === "GET") {
+    await env.DB.prepare(
+      "SELECT service_name,service_duration,service_price_mode,service_price_cents,service_version FROM bookings LIMIT 1",
+    ).first();
+    await env.DB.prepare("SELECT 1 FROM professional_services LIMIT 1").first();
     await env.DB.prepare(
       "SELECT status,approval_expires_at,version FROM bookings LIMIT 1",
     ).first();
@@ -168,46 +211,26 @@ async function route(request: Request, env: Env) {
     if (!parsed.success)
       throw new HttpError(422, "Confira a data e o serviço.");
     const args = parsed.data;
-    const { weekday } = window(args.date, "09:00", args.serviceId);
-    const hours = await env.DB.prepare(
-      "SELECT * FROM weekly_hours WHERE professional_id=? AND weekday=? AND enabled=1",
-    )
-      .bind(professionalId, weekday)
-      .first<HoursRow>();
-    if (!hours) return json([]);
-    const occupied = await env.DB.prepare(
-      "SELECT minute FROM occupied_slots WHERE professional_id=? AND date=?",
-    )
-      .bind(professionalId, args.date)
-      .all<{ minute: number }>();
-    const set = new Set(occupied.results.map((s) => s.minute));
-    const duration =
-      services.find((s) => s.id === args.serviceId)!.duration + 15;
-    const result = [];
-    for (
-      let start = hours.opens;
-      start + duration <= hours.closes;
-      start += 30
-    ) {
-      let free = true;
-      for (let m = start; m < start + duration; m += 15)
-        if (set.has(m)) free = false;
-      const startsAt =
-        Date.parse(`${args.date}T${clock(start)}:00-03:00`) / 1000;
-      if (free && startsAt >= Math.floor(Date.now() / 1000) + 48 * 3600)
-        result.push(clock(start));
-    }
-    return json(result);
+    const service = await bookingService(env, professionalId, args.serviceId);
+    return json(
+      await available(env, professionalId, args.date, service.duration_minutes),
+    );
   }
   if (path === "/api/bookings" && method === "POST") {
     const data = await read(request, bookingSchema);
-    const w = window(data.date, data.time, data.serviceId),
+    const service = await bookingService(
+      env,
+      professionalId,
+      data.serviceId,
+      data.serviceVersion,
+    );
+    const w = window(data.date, data.time, service.duration_minutes),
       id = crypto.randomUUID(),
       secret = randomToken();
     requireNotice(w.startsAt);
     const row = await env.DB.prepare(
-      `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,professional_id,approval_expires_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,unixepoch()+86400) RETURNING *`,
+      `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,professional_id,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version,approval_expires_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,unixepoch()+86400) RETURNING *`,
     )
       .bind(
         id,
@@ -222,9 +245,37 @@ async function route(request: Request, env: Env) {
         data.email,
         await digest(secret),
         professionalId,
+        service.name,
+        service.description,
+        service.duration_minutes,
+        service.price_mode,
+        service.price_cents,
+        service.version,
       )
       .first<BookingRow>();
     return json({ ...output(row!), cancelToken: secret }, 201);
+  }
+  const moveAvailability = path.match(
+    /^\/api\/bookings\/([^/]+)\/availability$/,
+  );
+  if (moveAvailability && method === "GET") {
+    if (!bookingId.safeParse(moveAvailability[1]).success)
+      throw new HttpError(404, "Reserva não encontrada.");
+    const row = await customer(request, env, moveAvailability[1]);
+    if (row.status !== "pending_approval")
+      throw new HttpError(409, "Solicitação indisponível para alteração.");
+    const data = moveSchema
+      .pick({ date: true })
+      .safeParse(Object.fromEntries(url.searchParams));
+    if (!data.success) throw new HttpError(422, "Confira a data.");
+    return json(
+      await available(
+        env,
+        row.professional_id,
+        data.data.date,
+        row.service_duration,
+      ),
+    );
   }
   const match = path.match(/^\/api\/bookings\/([^/]+)$/);
   if (match && (method === "GET" || method === "DELETE" || method === "PUT")) {
@@ -249,7 +300,7 @@ async function route(request: Request, env: Env) {
         "Para remarcar uma reserva confirmada, entre em contato com o profissional.",
       );
     const data = await read(request, moveSchema),
-      w = window(data.date, data.time, row.service_id);
+      w = window(data.date, data.time, row.service_duration);
     requireNotice(w.startsAt);
     const moved = await env.DB.prepare(
       "UPDATE bookings SET date=?,weekday=?,starts_at=?,start_min=?,end_min=?,occupied_until=?,version=version+1 WHERE id=? AND cancel_hash=? AND cancelled=0 AND status='pending_approval' AND version=? AND approval_expires_at>unixepoch() RETURNING *",
@@ -401,7 +452,28 @@ async function route(request: Request, env: Env) {
       return noContent();
     }
     if (path === "/api/admin/services" && method === "GET")
-      return json(services);
+      return json(await listServices(env, professionalId, true));
+    if (path === "/api/admin/services" && method === "POST")
+      return json(
+        await saveService(
+          env,
+          professionalId,
+          principal.subject,
+          await read(request, createServiceSchema),
+        ),
+        201,
+      );
+    const serviceMatch = path.match(/^\/api\/admin\/services\/([^/]+)$/);
+    if (serviceMatch && method === "PUT")
+      return json(
+        await saveService(
+          env,
+          professionalId,
+          principal.subject,
+          await read(request, editServiceSchema),
+          serviceMatch[1],
+        ),
+      );
     if (path === "/api/admin/profile" && method === "GET")
       return json(privateProfile(await professionalById(env, professionalId)));
     if (path === "/api/admin/profile" && method === "PUT")
@@ -508,6 +580,17 @@ export default {
         );
       else if (message.includes("PROFESSIONAL_UNAVAILABLE"))
         response = json({ detail: "Profissional indisponível." }, 404);
+      else if (
+        message.includes("SERVICE_CHANGED") ||
+        message.includes("SERVICE_SNAPSHOT_IMMUTABLE")
+      )
+        response = json(
+          {
+            detail:
+              "O serviço mudou. Atualize a página e confira os novos dados.",
+          },
+          409,
+        );
       else if (message.includes("INVALID_TRANSITION"))
         response = json(
           { detail: "A solicitação mudou ou expirou. Atualize a página." },

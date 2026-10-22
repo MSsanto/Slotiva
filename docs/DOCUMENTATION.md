@@ -177,3 +177,21 @@ An API-fixture journey verifies default selection, counts, correct filtering,
 read-only cancelled rows, arrow/Home/End focus navigation, empty states and no
 mutation requests from tab switching. This is UI coverage, not new backend
 security evidence. Backend behavior, history storage and authorization are unchanged.
+
+
+Service-catalog verification adds seven bundled Worker/D1 cases covering role/origin
+and cross-tenant access, duration and price validation, stale edit/booking versions,
+immutable receipts, rescheduling after deactivation, maximum-duration occupancy,
+cancellation release, closed working days, an empty active catalog and recurring
+retry stability after editing the catalog.
+The populated upgrade test compares all original booking fields, every occupied
+slot, series, audit and outbox row before/after migration 0006 and checks foreign
+keys. The browser journey creates a service, edits duration/name, checks paid/free/
+hidden rendering, preserves an existing booking's terms and deactivates the card;
+it also audits the open editor with axe. Local browser execution is unavailable
+because the Playwright Chromium download did not install; GitHub CI is the browser
+verification source. Remote migration and owner acceptance are separate checks.
+
+Local service-catalog checks passed: 87 Worker tests, one frontend test, production
+build, lint and formatting. The build reports a client chunk just above 500 kB;
+this is a performance warning, not a failed compilation.

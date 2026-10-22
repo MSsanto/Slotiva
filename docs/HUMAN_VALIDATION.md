@@ -6,6 +6,69 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Editable services — migration 0006
+
+Implementation adds a tenant-owned service editor in /admin, dynamic public cards,
+and immutable service terms on public and agreed bookings. Local verification is
+separate from remote migration and owner acceptance. Migration 0006 has not been
+applied remotely by the agent. Existing homologation currently has 0001–0005.
+
+The bookings table must be rebuilt to remove the old fixed-service checks. The
+migration copies every booking, backfills its original legacy terms, explicitly
+preserves occupied slots through D1's cascading delete behavior, and keeps series,
+audit and outbox rows intact. It does not rewrite existing durations or prices.
+The previous Worker cannot create bookings against the new schema.
+
+Coordinate a quiet homologation window first: close test browser tabs and stop
+other testers/Preview writers, including scheduled or automated writes. If that
+cannot be guaranteed, use a new isolated homologation database and update BOTH
+Preview DB and PREVIEW_DB bindings before migrating. Do not touch production or
+the older shared Preview. Do not merge main or run wrangler deploy for this step.
+
+In the notebook's repository, on feat/product-readiness, with a clean checkout:
+
+```powershell
+git pull --ff-only
+npm ci
+npx wrangler d1 info PREVIEW_DB --config ./wrangler.preview-migrations.jsonc
+```
+
+Verify the database is slotiva-product-homologation with ID
+74b37b6b-7f9e-40a3-b685-546d7a0a76ac (or the intentionally substituted new isolated
+DB), and that the Preview binding matches it. Once old writers are stopped:
+
+```powershell
+npx wrangler d1 export PREVIEW_DB --remote --config ./wrangler.preview-migrations.jsonc --output "$env:TEMP/slotiva-before-services.sql"
+npx wrangler d1 migrations apply PREVIEW_DB --remote --config ./wrangler.preview-migrations.jsonc
+npx wrangler preview
+Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/health"
+```
+
+Keep the backup private and outside Git. Require successful export before migration
+and successful migration before Preview publication. If migration fails, stop and
+inspect; do not publish mismatched code or try the old Worker as a rollback after a
+successful schema change. Restore only through a deliberate isolated recovery.
+If Preview publication fails after migration, keep the window closed and retry
+publication of the matching revision. Only reopen testing after health succeeds.
+
+Acceptance with fictional data:
+
+1. In /admin > Seus serviços, add a named service with a description, 50 minutes
+   and R$175.50. Check the professional's /p/{slug} card shows 50 min and R$175,50.
+2. Submit a public request and create a weekly or fortnightly agreed series using
+   that service. Check original terms and durations in receipts/agenda/storage.
+3. Edit its name, duration and price. Existing bookings and their occupied time
+   must keep the old terms; new bookings use the new version. A stale open page
+   must receive a conflict and require review of refreshed terms.
+4. Choose Gratuito, then Não divulgar valor. Public cards must distinguish those
+   choices; undisclosed pricing must show neither a price nor "Gratuito".
+5. Deactivate the service. It remains editable in /admin, disappears from public
+   cards and the agreed-booking selector, and cannot receive new bookings.
+   Pending requests can still move using their original duration; existing
+   approvals, individual/series cancellations and Cancelados remain functional.
+6. Check another professional's catalog is unchanged, and master cannot enter
+   professional appointment/service APIs. Validate on mobile and by keyboard.
+
 ## Agenda and cancelled-history tabs — 2026-10-22
 
 The owner requested a separate Cancelados tab to declutter the appointment area.
@@ -360,7 +423,7 @@ selection of the authorized identity. They are the external human setup boundary
 
 With the psychologist, use fictional client identifiers. Confirm actual session
 duration, break, working days, desired quantity/end and cancellation practice;
-the current catalog/buffer are fixed and may require another increment.
+the service catalog is now editable; the buffer remains fixed at 15 minutes.
 
 Create 4 weekly encounters and 4 fortnightly encounters at a fixed time. Check
 all dates, local time and the final date. Repeat a request after an ambiguous

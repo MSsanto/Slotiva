@@ -3,13 +3,22 @@ export type Service = {
   name: string;
   description: string;
   duration: number;
-  price: number;
+  price: number | null;
+  priceMode: "free" | "paid" | "hidden";
+  version: number;
+  active: boolean;
 };
 export type Booking = {
   source?: "public" | "professional";
   seriesId?: string | null;
   id: string;
   serviceId: string;
+  serviceName: string;
+  serviceDescription: string;
+  serviceDuration: number;
+  servicePriceMode: Service["priceMode"];
+  servicePrice: number | null;
+  serviceVersion: number;
   date: string;
   time: string;
   name: string;
@@ -106,3 +115,16 @@ export type ManagedProfessional = ProfessionalProfile & {
 };
 export const publicPath = (slug: string | undefined, resource: string) =>
   slug ? `/public/${encodeURIComponent(slug)}/${resource}` : `/${resource}`;
+
+export const servicePriceLabel = (
+  mode: Service["priceMode"],
+  price: number | null,
+) =>
+  mode === "hidden"
+    ? ""
+    : mode === "free"
+      ? "Gratuito"
+      : new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(price ?? 0);

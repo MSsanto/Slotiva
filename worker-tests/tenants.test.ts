@@ -51,6 +51,7 @@ function payload(time = "09:00") {
     date: date(),
     time,
     serviceId: "discovery",
+    serviceVersion: 1,
     name: "Fictional client",
     email: "",
   };
@@ -921,5 +922,337 @@ describe("Professional-entered fixed recurrence", () => {
         )
       ).status,
     ).toBe(201);
+  });
+});
+
+const serviceData = (extra: Record<string, unknown> = {}) => ({
+  name: "Psicoterapia",
+  description: "Encontro individual",
+  duration: 50,
+  priceMode: "paid",
+  priceCents: 17550,
+  active: true,
+  ...extra,
+});
+async function newService(extra: Record<string, unknown> = {}) {
+  const response = await request(
+    "/api/admin/services",
+    "POST",
+    serviceData(extra),
+    authA,
+  );
+  expect(response.status).toBe(201);
+  return (await response.json()) as { id: string; version: number };
+}
+describe("professional service catalog and immutable booking terms", () => {
+  it("seeds independent catalogs and authorizes all service writes by tenant and role", async () => {
+    const own = (await (
+      await request("/api/admin/services", "GET", undefined, authA)
+    ).json()) as unknown[];
+    expect(own).toHaveLength(3);
+    expect(
+      (await request("/api/admin/services", "POST", serviceData())).status,
+    ).toBe(401);
+    expect(
+      (await request("/api/admin/services", "POST", serviceData(), master))
+        .status,
+    ).toBe(403);
+    const s = await newService();
+    expect(
+      (
+        await request(
+          `/api/admin/services/${s.id}`,
+          "PUT",
+          serviceData({ version: 1 }),
+          authB,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(
+          `/api/admin/services/${s.id}`,
+          "PUT",
+          serviceData({ version: 1 }),
+          { ...authA, Origin: "http://evil.example" },
+        )
+      ).status,
+    ).toBe(403);
+    const other = (await (
+      await request(`/api/public/${b.slug}/services`)
+    ).json()) as { id: string }[];
+    expect(other.some((x) => x.id === s.id)).toBe(false);
+    expect(
+      (
+        await request(`/api/public/${b.slug}/bookings`, "POST", {
+          ...payload(),
+          email: "fixture@example.com",
+          serviceId: s.id,
+        })
+      ).status,
+    ).toBe(404);
+  });
+  it("validates durations, explicit price modes, bounds and strict payloads", async () => {
+    for (const extra of [
+      { duration: 14 },
+      { duration: 51 },
+      { duration: 245 },
+      { priceCents: 0 },
+      { priceCents: 1.5 },
+      { priceCents: null },
+      { priceMode: "free", priceCents: 1 },
+      { priceMode: "hidden", priceCents: 0 },
+      { name: " " },
+      { professionalId: b.id },
+    ])
+      expect(
+        (
+          await request(
+            "/api/admin/services",
+            "POST",
+            serviceData(extra),
+            authA,
+          )
+        ).status,
+      ).toBe(422);
+    await newService({ priceMode: "free", priceCents: 0 });
+    await newService({ priceMode: "hidden", priceCents: null });
+    const publicServices = (await (
+      await request(`/api/public/${a.slug}/services`)
+    ).json()) as { priceMode: string; price: number | null }[];
+    expect(publicServices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ priceMode: "free", price: 0 }),
+        expect.objectContaining({ priceMode: "hidden", price: null }),
+      ]),
+    );
+  });
+  it("rejects stale edits and stale booking versions without occupying a slot", async () => {
+    const s = await newService();
+    expect(
+      (
+        await request(
+          `/api/admin/services/${s.id}`,
+          "PUT",
+          serviceData({ version: 1, name: "Novo atendimento" }),
+          authA,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          `/api/admin/services/${s.id}`,
+          "PUT",
+          serviceData({ version: 1 }),
+          authA,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(`/api/public/${a.slug}/bookings`, "POST", {
+          ...payload(),
+          email: "fixture@example.com",
+          serviceId: s.id,
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(
+          "/api/admin/series",
+          "POST",
+          series({ serviceId: s.id }),
+          authA,
+        )
+      ).status,
+    ).toBe(409);
+    const slots = await db
+      .prepare("SELECT count(*) n FROM occupied_slots WHERE professional_id=?")
+      .bind(a.id)
+      .first<{ n: number }>();
+    expect(slots!.n).toBe(0);
+  });
+  it("snapshots names, durations and cents, preserves rescheduling after deactivation, and rejects snapshot tampering", async () => {
+    const s = await newService();
+    const response = await request(`/api/public/${a.slug}/bookings`, "POST", {
+      ...payload(),
+      email: "fixture@example.com",
+      serviceId: s.id,
+    });
+    expect(response.status).toBe(201);
+    const booking = (await response.json()) as {
+      id: string;
+      cancelToken: string;
+      serviceName: string;
+      serviceDuration: number;
+      servicePrice: number;
+    };
+    expect(booking).toMatchObject({
+      serviceName: "Psicoterapia",
+      serviceDuration: 50,
+      servicePrice: 175.5,
+    });
+    expect(
+      (
+        await request(
+          `/api/admin/services/${s.id}`,
+          "PUT",
+          serviceData({
+            version: 1,
+            name: "Outro nome",
+            duration: 90,
+            priceMode: "hidden",
+            priceCents: null,
+            active: false,
+          }),
+          authA,
+        )
+      ).status,
+    ).toBe(200);
+    const publicList = (await (
+      await request(`/api/public/${a.slug}/services`)
+    ).json()) as { id: string }[];
+    expect(publicList.some((x) => x.id === s.id)).toBe(false);
+    expect(
+      (
+        await request(`/api/public/${a.slug}/bookings`, "POST", {
+          ...payload("12:00"),
+          email: "fixture@example.com",
+          serviceId: s.id,
+          serviceVersion: 2,
+        })
+      ).status,
+    ).toBe(404);
+    const capability = { "X-Cancel-Token": booking.cancelToken };
+    const slots = (await (
+      await request(
+        `/api/bookings/${booking.id}/availability?date=${date()}`,
+        "GET",
+        undefined,
+        capability,
+      )
+    ).json()) as string[];
+    expect(slots).toContain("15:30"); // original 50+15 fits; edited 90+15 would not.
+    const moved = await request(
+      `/api/bookings/${booking.id}`,
+      "PUT",
+      { date: date(), time: "15:30" },
+      capability,
+    );
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toMatchObject({
+      serviceName: "Psicoterapia",
+      serviceDuration: 50,
+      servicePrice: 175.5,
+    });
+    await expect(
+      db
+        .prepare(
+          "UPDATE bookings SET service_name='Changed',version=version+1 WHERE id=?",
+        )
+        .bind(booking.id)
+        .run(),
+    ).rejects.toThrow("SERVICE_SNAPSHOT_IMMUTABLE");
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO bookings(id,professional_id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,approval_expires_at,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version)
+      SELECT ?,professional_id,service_id,date,weekday,starts_at,780,830,845,name,email,cancel_hash,unixepoch()+86400,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version FROM bookings WHERE id=?`,
+        )
+        .bind(crypto.randomUUID(), booking.id)
+        .run(),
+    ).rejects.toThrow("SERVICE_CHANGED");
+    const row = await db
+      .prepare("SELECT end_min,occupied_until FROM bookings WHERE id=?")
+      .bind(booking.id)
+      .first();
+    expect(row).toMatchObject({ end_min: 980, occupied_until: 995 });
+  });
+  it("reserves all 17 occupancy units for a 240-minute service and releases them on cancellation", async () => {
+    const s = await newService({ duration: 240 });
+    const r = await request(
+      "/api/admin/series",
+      "POST",
+      series({ serviceId: s.id, frequency: "once", count: 1 }),
+      authA,
+    );
+    expect(r.status).toBe(201);
+    const result = (await r.json()) as {
+      bookings: { id: string; serviceDuration: number }[];
+    };
+    expect(result.bookings[0].serviceDuration).toBe(240);
+    const count = async () =>
+      (await db
+        .prepare(
+          "SELECT count(*) n FROM occupied_slots WHERE professional_id=?",
+        )
+        .bind(a.id)
+        .first<{ n: number }>())!.n;
+    expect(await count()).toBe(17);
+    expect(
+      (
+        await request(
+          "/api/admin/series",
+          "POST",
+          series({ time: "13:00", frequency: "once", count: 1 }),
+          authA,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(
+          `/api/admin/bookings/${result.bookings[0].id}`,
+          "DELETE",
+          undefined,
+          authA,
+        )
+      ).status,
+    ).toBe(204);
+    expect(await count()).toBe(0);
+  });
+  it("keeps series retries and original terms stable after a catalog edit", async () => {
+    const s = await newService();
+    const input = series({ serviceId: s.id });
+    const first = await request("/api/admin/series", "POST", input, authA);
+    expect(first.status).toBe(201);
+    const original = await first.json();
+    await request(
+      `/api/admin/services/${s.id}`,
+      "PUT",
+      serviceData({ version: 1, duration: 90, priceCents: 20000 }),
+      authA,
+    );
+    const replay = await request("/api/admin/series", "POST", input, authA);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(original);
+  });
+});
+
+describe("catalog absence and closed working days", () => {
+  it("returns an empty array for closed days and after deactivating every service", async () => {
+    const d = new Date(`${date()}T12:00:00Z`);
+    while (d.getUTCDay() !== 0) d.setUTCDate(d.getUTCDate() + 1);
+    const closed = await request(
+      `/api/public/${a.slug}/availability?date=${d.toISOString().slice(0, 10)}&serviceId=discovery`,
+    );
+    expect(closed.status).toBe(200);
+    expect(await closed.json()).toEqual([]);
+    for (const id of ["discovery", "consulting", "review"])
+      expect(
+        (
+          await request(
+            `/api/admin/services/${id}`,
+            "PUT",
+            serviceData({ version: 1, active: false }),
+            authA,
+          )
+        ).status,
+      ).toBe(200);
+    expect(
+      await (await request(`/api/public/${a.slug}/services`)).json(),
+    ).toEqual([]);
   });
 });
