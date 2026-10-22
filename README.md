@@ -40,7 +40,8 @@ are durable intents, not sent messages. Calendar busy-time checks, event creatio
 invites and recovery links remain pending. Professionals can create, edit and
 deactivate their own services: name, description, duration (15–240 minutes in
 5-minute steps), and paid, free or undisclosed pricing. Existing bookings keep
-immutable service terms. Starts remain every 30 minutes, with a 15-minute buffer
+immutable service terms. Storage enforces whole-minute durations and integer
+price cents as well as API validation. Starts remain every 30 minutes, with a 15-minute buffer
 and São Paulo timezone. Clinical notes, payments and other timezones are not delivered.
 No real-customer rollout is claimed.
 

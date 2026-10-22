@@ -180,7 +180,8 @@ security evidence. Backend behavior, history storage and authorization are uncha
 
 
 Service-catalog verification adds seven bundled Worker/D1 cases covering role/origin
-and cross-tenant access, duration and price validation, stale edit/booking versions,
+and cross-tenant access, duration and price validation (including fractional SQL
+values rejected by storage constraints), stale edit/booking versions,
 immutable receipts, rescheduling after deactivation, maximum-duration occupancy,
 cancellation release, closed working days, an empty active catalog and recurring
 retry stability after editing the catalog.

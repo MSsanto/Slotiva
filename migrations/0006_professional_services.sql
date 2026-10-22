@@ -6,7 +6,7 @@ CREATE TABLE professional_services (
  id TEXT NOT NULL,
  name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 100),
  description TEXT NOT NULL DEFAULT '' CHECK(length(description)<=500),
- duration_minutes INTEGER NOT NULL CHECK(duration_minutes BETWEEN 15 AND 240 AND duration_minutes%5=0),
+ duration_minutes INTEGER NOT NULL CHECK(typeof(duration_minutes)='integer' AND duration_minutes BETWEEN 15 AND 240 AND duration_minutes%5=0),
  price_mode TEXT NOT NULL CHECK(price_mode IN ('free','paid','hidden')),
  price_cents INTEGER,
  active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
@@ -14,8 +14,8 @@ CREATE TABLE professional_services (
  position INTEGER NOT NULL DEFAULT 0,
  last_actor TEXT NOT NULL DEFAULT 'system',
  PRIMARY KEY(professional_id,id),
- CHECK((price_mode='free' AND price_cents IS NOT NULL AND price_cents=0) OR
-       (price_mode='paid' AND price_cents IS NOT NULL AND price_cents BETWEEN 1 AND 99999999) OR
+ CHECK((price_mode='free' AND typeof(price_cents)='integer' AND price_cents=0) OR
+       (price_mode='paid' AND typeof(price_cents)='integer' AND price_cents BETWEEN 1 AND 99999999) OR
        (price_mode='hidden' AND price_cents IS NULL))
 );
 INSERT INTO professional_services(professional_id,id,name,description,duration_minutes,price_mode,price_cents,position)
@@ -68,15 +68,15 @@ CREATE TABLE bookings_next (
  series_id TEXT REFERENCES booking_series(id),
  service_name TEXT NOT NULL,
  service_description TEXT NOT NULL,
- service_duration INTEGER NOT NULL CHECK(service_duration BETWEEN 15 AND 240 AND service_duration%5=0),
+ service_duration INTEGER NOT NULL CHECK(typeof(service_duration)='integer' AND service_duration BETWEEN 15 AND 240 AND service_duration%5=0),
  service_price_mode TEXT NOT NULL CHECK(service_price_mode IN ('free','paid','hidden')),
  service_price_cents INTEGER,
  service_version INTEGER NOT NULL CHECK(service_version>=1),
  FOREIGN KEY(professional_id,service_id) REFERENCES professional_services(professional_id,id),
  CHECK(end_min=start_min+service_duration),
  CHECK(occupied_until=end_min+15),
- CHECK((service_price_mode='free' AND service_price_cents IS NOT NULL AND service_price_cents=0) OR
-       (service_price_mode='paid' AND service_price_cents IS NOT NULL AND service_price_cents BETWEEN 1 AND 99999999) OR
+ CHECK((service_price_mode='free' AND typeof(service_price_cents)='integer' AND service_price_cents=0) OR
+       (service_price_mode='paid' AND typeof(service_price_cents)='integer' AND service_price_cents BETWEEN 1 AND 99999999) OR
        (service_price_mode='hidden' AND service_price_cents IS NULL))
 );
 INSERT INTO bookings_next(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,cancelled,created_at,status,approval_expires_at,decided_at,version,professional_id,source,series_id,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version) SELECT b.id,b.service_id,b.date,b.weekday,b.starts_at,b.start_min,b.end_min,b.occupied_until,b.name,b.email,b.cancel_hash,b.cancelled,b.created_at,b.status,b.approval_expires_at,b.decided_at,b.version,b.professional_id,b.source,b.series_id,s.name,s.description,s.duration_minutes,s.price_mode,s.price_cents,s.version FROM bookings b JOIN professional_services s ON s.professional_id=b.professional_id AND s.id=b.service_id;

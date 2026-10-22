@@ -1015,6 +1015,18 @@ describe("professional service catalog and immutable booking terms", () => {
           )
         ).status,
       ).toBe(422);
+    for (const [duration, cents] of [
+      [50.2, 100],
+      [50, 100.5],
+    ])
+      await expect(
+        db
+          .prepare(
+            "INSERT INTO professional_services(professional_id,id,name,duration_minutes,price_mode,price_cents) VALUES(?,?,?,?,'paid',?)",
+          )
+          .bind(a.id, crypto.randomUUID(), "Fixture", duration, cents)
+          .run(),
+      ).rejects.toThrow("CHECK constraint failed");
     await newService({ priceMode: "free", priceCents: 0 });
     await newService({ priceMode: "hidden", priceCents: null });
     const publicServices = (await (

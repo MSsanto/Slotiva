@@ -13,7 +13,8 @@ meaning of earlier Portuguese entries, whose original wording remains in Git.
   requests and guards insert/edit races in D1. Existing receipts, occupancy and
   pending rescheduling retain original terms after service edits/deactivation.
 - Migration 0006 seeds defaults and rebuilds bookings while preserving occupancy,
-  history, series and outbox. Occupancy supports the full 240-minute maximum.
+  history, series and outbox. Storage rejects fractional durations/cents even on
+  direct SQL writes. Occupancy supports the full 240-minute maximum.
 - Adds tenant, validation, concurrency-version, historical migration and browser
   coverage. Documents a private backup and coordinated homologation-only release;
   remote migration and hosted owner acceptance remain pending.

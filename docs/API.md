@@ -40,7 +40,8 @@ Names are trimmed, 1–100 characters; descriptions at most 500. Duration is an
 integer from 15 to 240 minutes, divisible by 5. `priceMode` is `free` (cents=0),
 `paid` (integer cents 1–99999999) or `hidden` (cents=null). Public `price` is BRL
 major units or null; hidden means omit price text, not display "free". There is no
-payment processing. Active is a boolean. Inputs are strict and owner IDs are not
+payment processing. SQL type checks also reject fractional durations or cents,
+including direct database writes. Active is a boolean. Inputs are strict and owner IDs are not
 accepted. Create returns 201; edit returns 200 and increments version. Stale or
 inaccessible edits return 409. Master credentials cannot use these routes.
 
