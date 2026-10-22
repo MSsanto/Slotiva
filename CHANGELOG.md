@@ -17,6 +17,8 @@ meaning of earlier Portuguese entries, whose original wording remains in Git.
 - Adds migration 0007 after the published 0006, preserving existing catalog,
   bookings and dependent rows. Adds Worker/browser and populated-upgrade coverage;
   remote migration and hosted acceptance remain pending.
+- Application revision f328632 passed GitHub CI: 89 Worker tests, one frontend
+  test and 10 browser journeys, plus build/lint/format/dry-run/documentation checks.
 
 ## 2026-10-22 — Editable professional service catalogs
 

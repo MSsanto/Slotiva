@@ -204,5 +204,9 @@ null paid-price snapshots and invalid fixed-duration overrides. The migration
 upgrade also compares custom v6 services/bookings and catalog edits across 0007.
 The browser journey now saves both fields blank, verifies to-agree labels and no
 public slots, and enters a professional agreement with its own duration. These
-new cases supersede the first catalog contract's mandatory fields. Prior catalog
-revision 735fcfe passed full GitHub CI; the optional-term revision needs its own CI.
+new cases supersede the first catalog contract's mandatory fields. The optional-term
+application revision f328632 passed [full GitHub CI](https://github.com/MSsanto/Slotiva/actions/runs/39844025395):
+89 Worker tests, one frontend test, 10 Playwright journeys, isolated migrations,
+format, lint, build and Wrangler dry-run. Its [documentation CI](https://github.com/MSsanto/Slotiva/actions/runs/39844025192)
+also passed. This records source/CI evidence; remote migrations 0006–0007 and hosted
+owner acceptance remain pending.
