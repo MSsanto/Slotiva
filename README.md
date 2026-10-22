@@ -167,3 +167,10 @@ checks semantics and English. Repository branch rules must separately enforce
 mandatory checks and reviews. Local-only work is not a completed delivery.
 The initial FastAPI/PostgreSQL implementation remains in Git history through
 c44ee77; [ADR 001](docs/ADR-001-cloudflare.md) records its replacement.
+
+Google callback failures now return a fixed diagnostic stage on the login page
+(transaction, exchange, identity, authorization, session, configuration or origin).
+These stages help the operator distinguish setup failures without exposing Google
+responses, tokens, subjects or database errors. A configuration flag alone does
+not establish a successful login. See [callback contract](docs/API.md) and
+[human diagnosis](docs/HUMAN_VALIDATION.md).

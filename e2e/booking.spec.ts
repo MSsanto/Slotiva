@@ -243,3 +243,26 @@ test("master manages professionals and their public links in the UI (API fixture
     page.getByRole("link", { name: "/p/fictional-psychologist" }),
   ).toHaveCount(0);
 });
+
+for (const reason of ["authorization", "__proto__"]) {
+  test(`Google callback shows safe guidance for ${reason}`, async ({
+    page,
+  }) => {
+    await page.route("**/api/auth/config", (route) =>
+      route.fulfill({ json: { googleEnabled: true, passwordEnabled: false } }),
+    );
+    await page.route("**/api/admin/session", (route) =>
+      route.fulfill({ status: 401, json: { detail: "Sessão ausente." } }),
+    );
+    await page.goto(`/admin?google=failed&reason=${reason}`);
+    await expect(page.getByRole("alert")).toHaveText(
+      reason === "authorization"
+        ? "Esta conta Google não tem acesso autorizado. Escolha a conta cadastrada pelo responsável."
+        : "Não foi possível entrar com Google. Reinicie o acesso ou procure o responsável.",
+    );
+    await expect(
+      page.getByRole("button", { name: "Entrar com Google" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Senha administrativa")).toHaveCount(0);
+  });
+}

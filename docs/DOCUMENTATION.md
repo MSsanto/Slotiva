@@ -117,3 +117,16 @@ differ from production/old Preview, and have no remote local-development overrid
 The owner's successful creation output establishes resource creation only, not
 schema migration, usable Google sign-in or healthy deployment. Configuration
 checks and dry-run are separate from these external acceptance results.
+
+Callback diagnostic regression coverage uses signed synthetic identities and D1 to
+exercise transaction, provider, identity, authorization, session, configuration and
+origin failures. Tests check fixed redirects, cookie cleanup, no session creation
+and non-reflection of arbitrary error/query text. These checks do not identify the
+owner's hosted failure until the updated Preview is exercised.
+
+For the callback diagnostic update, 62 Worker tests, production build, lint and
+format checks passed locally. Two new browser cases cover authorization guidance
+and an unknown/prototype-key reason fallback. Local browser execution was blocked
+before assertions by a missing Playwright executable; its browser download returned
+an invalid archive. Browser acceptance must therefore be established by CI or a
+working browser installation, not claimed from this local attempt.

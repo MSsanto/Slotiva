@@ -289,3 +289,29 @@ Worker, then validate before reopening. Never roll back only the Worker to an
 incompatible schema. Prepare a compatible schema/data restoration plan. No
 production deployment is established by this handoff. The owner-reported remote
 homologation migration is recorded above; production release remains separate.
+
+## Diagnose a login that returns to the login screen
+
+On 2026-10-22 the owner reported googleEnabled=true/passwordEnabled=false and a
+real sign-in attempt returning to /admin?google=failed. This proves configuration
+presence and a failed callback, not a successful session or the cause of failure.
+The earlier generic redirect cannot identify the failed stage.
+
+Publish the diagnostic update to the isolated Preview, then start a fresh login
+from the stable Preview host. Report only the final /admin?google=failed&reason=...
+URL and the displayed message, never a callback URL containing code or state.
+
+| Stage | Operator check |
+| --- | --- |
+| configuration | Verify all required Preview settings exist. |
+| origin | Start on the configured stable PUBLIC_ORIGIN host. |
+| transaction | Restart in one tab; check browser cookie blocking and expiration. |
+| exchange | Confirm the matching Client ID/Client Secret, exact callback and retry a transient provider failure. |
+| identity | Investigate token/JWKS verification and availability without sharing tokens. |
+| authorization | Use the intended account; verify its exact Google sub against the Preview master allowlist or professional invitation. |
+| session | Check D1 availability and applied session schema; do not change authentication checks. |
+| internal | Investigate the unexpected server failure without exposing sensitive logs. |
+
+After an authorized master login, verify the master screen and reject an unrelated
+account. This diagnostic change has local automated coverage; hosted diagnosis and
+successful real OAuth remain pending until the operator supplies new evidence.

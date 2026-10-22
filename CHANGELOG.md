@@ -4,6 +4,16 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Safe Google callback diagnosis
+
+- Replaces the undifferentiated login failure with fixed stage codes and
+  Portuguese guidance, preserving all existing authentication checks.
+- Never reflects provider responses, tokens, account identifiers or exception
+  messages; failed callbacks clear the transaction cookie and use no-store.
+- Adds signed-token/D1 regression tests for failure classification and sensitive
+  data non-reflection. The owner's generic failure is recorded without guessing
+  its cause; hosted verification still requires a fresh Preview login.
+
 ## 2026-10-22 — Owner confirms Preview secret creation
 
 - Records owner-provided Preview deployment and GOOGLE_CLIENT_SECRET creation

@@ -22,6 +22,7 @@ import {
   completeGoogleLogin,
   verifyGoogleIdentity,
   googleEnabled,
+  googleFailure,
 } from "../worker/google";
 import {
   digest,
@@ -364,6 +365,83 @@ describe("Google professional authentication", () => {
         .prepare("SELECT count(*) as n FROM sessions")
         .first<{ n: number }>())!.n,
     ).toBe(1);
+  });
+  it.each([
+    ["expired state", "transaction"],
+    ["provider rejection", "exchange"],
+    ["invalid identity", "identity"],
+    ["unauthorized account", "authorization"],
+    ["session storage failure", "session"],
+    ["missing configuration", "configuration"],
+    ["wrong callback origin", "origin"],
+  ])(
+    "reports a safe callback stage for %s without leaking credentials",
+    async (scenario, stage) => {
+      const b = await begin();
+      const current = env();
+      let request = b.request;
+      let fetcher: typeof fetch = transport(await signed(b.transaction.nonce));
+      if (scenario === "expired state")
+        await db.prepare("UPDATE oauth_transactions SET expires_at=1").run();
+      if (scenario === "provider rejection")
+        fetcher = vi.fn(
+          async () => new Response("sensitive-provider-body", { status: 400 }),
+        );
+      if (scenario === "invalid identity")
+        fetcher = transport(await signed("wrong-nonce"));
+      if (scenario === "unauthorized account")
+        fetcher = transport(
+          await signed(b.transaction.nonce, { sub: "uninvited-account" }),
+        );
+      if (scenario === "session storage failure")
+        current.DB = new Proxy(db, {
+          get(target, prop) {
+            if (prop === "batch")
+              return () => {
+                throw new Error("sensitive-database-error");
+              };
+            const value = Reflect.get(target, prop);
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        });
+      if (scenario === "missing configuration")
+        delete current.GOOGLE_CLIENT_SECRET;
+      if (scenario === "wrong callback origin")
+        request = new Request(
+          b.request.url.replace(base, "http://other.test"),
+          { headers: { Cookie: b.cookie } },
+        );
+      const error = await completeGoogleLogin(request, current, {
+        fetch: fetcher,
+        keys,
+      }).catch((error) => error);
+      expect(error).toBeInstanceOf(Error);
+      const response = googleFailure(current, error);
+      expect(response.status).toBe(303);
+      expect(response.headers.get("Location")).toBe(
+        `/admin?google=failed&reason=${stage}`,
+      );
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+      expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
+      expect(await db.prepare("SELECT 1 FROM sessions").first()).toBeNull();
+    },
+  );
+  it("does not reflect arbitrary errors or query text in failure redirects", async () => {
+    const error = new Error("sensitive-token code=private&reason=attacker");
+    expect(googleFailure(env(), error).headers.get("Location")).toBe(
+      "/admin?google=failed&reason=internal",
+    );
+    const response = await worker.fetch(
+      new Request(
+        base +
+          "/api/admin/google/callback?state=private&code=secret&reason=attacker",
+      ),
+      env(),
+    );
+    expect(response.headers.get("Location")).toBe(
+      "/admin?google=failed&reason=transaction",
+    );
   });
   it("closes password login and legacy password sessions in Google mode", async () => {
     await expect(

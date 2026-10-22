@@ -69,11 +69,34 @@ function cookie(request: Request) {
 function secure(env: Env) {
   return env.COOKIE_SECURE === "false" ? "" : "; Secure";
 }
-export function googleFailure(env: Env) {
+type LoginStage =
+  | "configuration"
+  | "origin"
+  | "transaction"
+  | "exchange"
+  | "identity"
+  | "authorization"
+  | "session";
+
+class GoogleLoginFailure extends HttpError {
+  readonly stage: LoginStage;
+  constructor(stage: LoginStage, error: unknown) {
+    super(
+      error instanceof HttpError ? error.status : 500,
+      "Não foi possível concluir o acesso Google.",
+    );
+    this.stage = stage;
+  }
+}
+
+export function googleFailure(env: Env, error?: unknown) {
+  // Only a fixed stage is exposed; never propagate provider responses or errors.
+  const reason = error instanceof GoogleLoginFailure ? error.stage : "internal";
   return new Response(null, {
     status: 303,
     headers: {
-      Location: "/admin?google=failed",
+      Location: `/admin?google=failed&reason=${reason}`,
+      "Cache-Control": "no-store",
       "Set-Cookie": `${oauthCookie}=; HttpOnly; SameSite=Lax; Path=/api/admin/google; Max-Age=0${secure(env)}`,
       "Referrer-Policy": "no-referrer",
     },
@@ -189,91 +212,110 @@ export async function completeGoogleLogin(
     keys: googleKeys,
   },
 ) {
-  const cfg = settings(env),
-    url = new URL(request.url);
-  if (url.origin !== cfg.origin)
-    throw new HttpError(403, "Origem não autorizada.");
-  const state = url.searchParams.get("state") || "",
-    browser = cookie(request),
-    code = url.searchParams.get("code") || "";
-  if (!/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(browser))
-    throw new HttpError(401, "Acesso expirado ou inválido.");
-  const transaction = await env.DB.prepare(
-    "DELETE FROM oauth_transactions WHERE state_hash=? AND browser_hash=? AND expires_at>? RETURNING nonce,verifier",
-  )
-    .bind(await digest(state), await digest(browser), now())
-    .first<{ nonce: string; verifier: string }>();
-  if (
-    !transaction ||
-    !code ||
-    code.length > 4096 ||
-    url.searchParams.has("error")
-  )
-    throw new HttpError(401, "Acesso expirado ou inválido.");
-  let response: Response;
+  let stage: LoginStage = "configuration";
   try {
-    response = await deps.fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      signal: AbortSignal.timeout(8000),
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: cfg.clientId,
-        client_secret: cfg.secret,
-        redirect_uri: cfg.redirect,
-        grant_type: "authorization_code",
-        code_verifier: transaction.verifier,
-      }),
+    const cfg = settings(env),
+      url = new URL(request.url);
+    stage = "origin";
+    if (url.origin !== cfg.origin)
+      throw new HttpError(403, "Origem não autorizada.");
+    stage = "transaction";
+    const state = url.searchParams.get("state") || "",
+      browser = cookie(request),
+      code = url.searchParams.get("code") || "";
+    if (!/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(browser))
+      throw new HttpError(401, "Acesso expirado ou inválido.");
+    const transaction = await env.DB.prepare(
+      "DELETE FROM oauth_transactions WHERE state_hash=? AND browser_hash=? AND expires_at>? RETURNING nonce,verifier",
+    )
+      .bind(await digest(state), await digest(browser), now())
+      .first<{ nonce: string; verifier: string }>();
+    if (
+      !transaction ||
+      !code ||
+      code.length > 4096 ||
+      url.searchParams.has("error")
+    )
+      throw new HttpError(401, "Acesso expirado ou inválido.");
+    stage = "exchange";
+    let response: Response;
+    try {
+      response = await deps.fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        signal: AbortSignal.timeout(8000),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: cfg.clientId,
+          client_secret: cfg.secret,
+          redirect_uri: cfg.redirect,
+          grant_type: "authorization_code",
+          code_verifier: transaction.verifier,
+        }),
+      });
+    } catch {
+      throw new HttpError(503, "Google temporariamente indisponível.");
+    }
+    if (!response.ok)
+      throw new HttpError(401, "Acesso Google recusado. Tente novamente.");
+    let idToken: unknown;
+    try {
+      idToken = ((await response.json()) as { id_token?: unknown }).id_token;
+    } catch {
+      throw new HttpError(401, "Resposta Google inválida.");
+    }
+    if (typeof idToken !== "string" || idToken.length > 16384)
+      throw new HttpError(401, "Resposta Google inválida.");
+    stage = "identity";
+    const principal = await verifyGoogleIdentity(
+      idToken,
+      env,
+      transaction.nonce,
+      deps.keys,
+    );
+    stage = "session";
+    const session = randomToken();
+    await env.DB.batch([
+      env.DB.prepare(
+        "DELETE FROM sessions WHERE token_hash=? OR expires_at<=?",
+      ).bind(await digest(cookieToken(request)), now()),
+      env.DB.prepare(
+        "INSERT INTO sessions(token_hash,expires_at,provider,subject,role,professional_id) VALUES (?,?,'google',?,?,?)",
+      ).bind(
+        await digest(session),
+        now() + 28800,
+        principal.subject,
+        principal.role,
+        principal.professionalId,
+      ),
+    ]);
+    const headers = new Headers({
+      Location:
+        cfg.origin + (principal.role === "master" ? "/master" : "/admin"),
+      "Referrer-Policy": "no-referrer",
     });
-  } catch {
-    throw new HttpError(503, "Google temporariamente indisponível.");
+    headers.append(
+      "Set-Cookie",
+      `slotiva_session=${session}; HttpOnly; SameSite=Lax; Path=/api; Max-Age=28800${secure(env)}`,
+    );
+    headers.append(
+      "Set-Cookie",
+      `slotiva_session=; HttpOnly; SameSite=Lax; Path=/api/admin; Max-Age=0${secure(env)}`,
+    );
+    headers.append(
+      "Set-Cookie",
+      `${oauthCookie}=; HttpOnly; SameSite=Lax; Path=/api/admin/google; Max-Age=0${secure(env)}`,
+    );
+    return new Response(null, { status: 303, headers });
+  } catch (error) {
+    // Identity verification grants authorization only after cryptographic checks.
+    // A denied principal has a fixed 403; no subject/email is exposed.
+    if (
+      stage === "identity" &&
+      error instanceof HttpError &&
+      error.status === 403
+    )
+      stage = "authorization";
+    throw new GoogleLoginFailure(stage, error);
   }
-  if (!response.ok)
-    throw new HttpError(401, "Acesso Google recusado. Tente novamente.");
-  let idToken: unknown;
-  try {
-    idToken = ((await response.json()) as { id_token?: unknown }).id_token;
-  } catch {
-    throw new HttpError(401, "Resposta Google inválida.");
-  }
-  if (typeof idToken !== "string" || idToken.length > 16384)
-    throw new HttpError(401, "Resposta Google inválida.");
-  const principal = await verifyGoogleIdentity(
-    idToken,
-    env,
-    transaction.nonce,
-    deps.keys,
-  );
-  const session = randomToken();
-  await env.DB.batch([
-    env.DB.prepare(
-      "DELETE FROM sessions WHERE token_hash=? OR expires_at<=?",
-    ).bind(await digest(cookieToken(request)), now()),
-    env.DB.prepare(
-      "INSERT INTO sessions(token_hash,expires_at,provider,subject,role,professional_id) VALUES (?,?,'google',?,?,?)",
-    ).bind(
-      await digest(session),
-      now() + 28800,
-      principal.subject,
-      principal.role,
-      principal.professionalId,
-    ),
-  ]);
-  const headers = new Headers({
-    Location: cfg.origin + (principal.role === "master" ? "/master" : "/admin"),
-    "Referrer-Policy": "no-referrer",
-  });
-  headers.append(
-    "Set-Cookie",
-    `slotiva_session=${session}; HttpOnly; SameSite=Lax; Path=/api; Max-Age=28800${secure(env)}`,
-  );
-  headers.append(
-    "Set-Cookie",
-    `slotiva_session=; HttpOnly; SameSite=Lax; Path=/api/admin; Max-Age=0${secure(env)}`,
-  );
-  headers.append(
-    "Set-Cookie",
-    `${oauthCookie}=; HttpOnly; SameSite=Lax; Path=/api/admin/google; Max-Age=0${secure(env)}`,
-  );
-  return new Response(null, { status: 303, headers });
 }

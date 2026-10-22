@@ -74,3 +74,14 @@ Primary references:
 [server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server),
 [ID-token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token),
 [jose](https://github.com/panva/jose).
+
+## Failure diagnosis
+
+Callback errors expose only a fixed stage code and a corresponding user-facing
+message. The classification distinguishes transaction/browser binding, token
+exchange, cryptographic identity validation, account authorization and session
+storage, plus configuration/origin. It does not log or reflect the caught error,
+provider response, code, state, token, email or subject. A 403 from the verified
+principal check maps to authorization; identity validation failures stay identity.
+Unknown failures map to internal. Existing state, cookie and authorization checks
+remain mandatory; there is no diagnostic authentication bypass.

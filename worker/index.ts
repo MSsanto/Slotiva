@@ -157,8 +157,8 @@ async function route(request: Request, env: Env) {
   if (path === "/api/admin/google/callback" && method === "GET") {
     try {
       return await completeGoogleLogin(request, env);
-    } catch {
-      return googleFailure(env);
+    } catch (error) {
+      return googleFailure(env, error);
     }
   }
   if (path === "/api/availability" && method === "GET") {

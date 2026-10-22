@@ -14,6 +14,22 @@ import {
   type Hours,
   type Service,
 } from "../api";
+const googleFailureMessages = new Map(
+  Object.entries({
+    configuration: "A configuração do acesso Google está incompleta.",
+    origin: "Reinicie o acesso pelo endereço oficial desta aplicação.",
+    transaction:
+      "O acesso expirou ou o cookie de verificação não chegou. Reinicie nesta aba.",
+    exchange:
+      "Não foi possível concluir a troca com Google. O responsável deve conferir o Client ID, o Client Secret e o callback.",
+    identity: "Não foi possível validar a identidade recebida do Google.",
+    authorization:
+      "Esta conta Google não tem acesso autorizado. Escolha a conta cadastrada pelo responsável.",
+    session:
+      "Não foi possível criar a sessão. O responsável deve verificar o banco de dados.",
+  }),
+);
+
 export default function AdminPage() {
   const client = useQueryClient();
   const [password, setPassword] = useState("");
@@ -128,8 +144,10 @@ export default function AdminPage() {
         {new URLSearchParams(window.location.search).get("google") ===
           "failed" && (
           <p role="alert">
-            Não foi possível entrar com Google. Reinicie o acesso ou procure o
-            responsável.
+            {googleFailureMessages.get(
+              new URLSearchParams(window.location.search).get("reason") || "",
+            ) ||
+              "Não foi possível entrar com Google. Reinicie o acesso ou procure o responsável."}
           </p>
         )}
         {authOptions.isPending && (

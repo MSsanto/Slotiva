@@ -129,3 +129,16 @@ GET `/api/health` probes approval, identity, tenancy and recurrence schema; 200
 mail, Calendar or backup availability. Outbox state awaiting_integration means
 no external delivery. Follow [rollout](HUMAN_VALIDATION.md); migrations must not
 run against an old writable Worker or the old shared Preview.
+
+## Google callback failure diagnostics
+
+GET /api/admin/google/callback returns a 303 failure redirect to
+/admin?google=failed&reason=STAGE, with Cache-Control: no-store, no-referrer and
+OAuth transaction cookie deletion. STAGE is a fixed server classification:
+configuration, origin, transaction, exchange, identity, authorization or session.
+Unclassified failures use internal. Provider bodies, JWTs, query parameters,
+account identifiers, exception messages and SQL details are never reflected.
+The login UI maps known stages to Portuguese guidance and uses a generic fallback.
+Authorization is reported only after cryptographic identity verification; no
+specific subject, invitation or master membership is disclosed. No checks are
+bypassed and failures create no authenticated session.
