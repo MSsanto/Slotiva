@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Preview OAuth setup instructions consolidated
+
+- Carries the existing OAuth Client ID registration into the product-readiness
+  branch, preserving the separate implementation branch's history.
+- Updates README configuration status and documents interactive secret commands
+  scoped explicitly to feat/product-readiness.
+- Makes the missing verified master subject and absent assisted bootstrap utility
+  explicit blockers; no hosted OAuth success or production deployment is claimed.
+
 ## 2026-10-21 — Google Web Client ID registered for isolated Preview
 
 - Records the owner-supplied public OAuth Client ID in the product-homologation

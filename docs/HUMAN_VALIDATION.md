@@ -145,6 +145,40 @@ bootstrap endpoint. Confirm how the Cloudflare dashboard scopes Preview secrets;
 do not assume production secrets are inherited. Never paste tokens/secrets into
 chat, PRs, logs or screenshots. Do not enable demo/password fallback to bypass setup.
 
+### Apply the public configuration and Preview secrets
+
+From the repository on the Windows notebook, run these commands separately:
+
+```powershell
+git switch feat/product-readiness
+git pull --ff-only
+npx wrangler preview
+npx wrangler preview secret put GOOGLE_CLIENT_SECRET --name feat/product-readiness
+```
+
+Enter the Client Secret only at Wrangler's interactive prompt. Do not place its
+value in the command line, a file committed to Git, chat or a screenshot. This
+updates the named existing Preview. Do not substitute `wrangler secret put`,
+which targets the deployed Worker, or a Base secret shared with future Previews.
+
+Only after the intended owner's Google subject has been independently verified,
+run the following and enter that subject at the prompt:
+
+```powershell
+npx wrangler preview secret put MASTER_GOOGLE_SUBS --name feat/product-readiness
+Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/auth/config"
+```
+
+Expected after complete setup: googleEnabled=true and passwordEnabled=false.
+The first secret alone does not enable login: settings require a nonempty master
+allowlist too. This repository currently has no assisted subject-verification
+bootstrap utility; obtaining the verified master subject remains an explicit setup
+blocker. Do not invent a subject, use an email/client ID instead, or temporarily
+open registration to resolve it. A true config flag proves configuration presence,
+not a successful or correctly authorized sign-in; complete the role checks below.
+
+Reference: [Cloudflare Preview secrets](https://developers.cloudflare.com/workers/previews/configuration/#secrets).
+
 These actions require access to the owner's Google/Cloudflare accounts and
 selection of the authorized identity. They are the external human setup boundary.
 

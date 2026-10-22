@@ -104,8 +104,9 @@ The owner's Wrangler output confirms database creation and successful remote
 application of migrations 0001–0005 on 2026-10-21 to this exact homologation ID.
 The owner also supplied a successful 0.5.0 Preview upload for this branch at
 https://feat-product-readiness-slotiva.matheus-sergio.workers.dev.
-PUBLIC_ORIGIN is set to that stable Preview origin; Google client credentials and
-master subject are still unconfigured. The owner’s notebook checks returned
+PUBLIC_ORIGIN is set to that stable Preview origin, and the owner-supplied public
+GOOGLE_CLIENT_ID is registered only in previews.vars. The Client Secret and verified
+master subject still require Preview-scoped setup; real Google sign-in is unvalidated. The owner’s notebook checks returned
 health status=ok/storage=D1/approvalWorkflow=true and auth config
 googleEnabled=false/passwordEnabled=false. This establishes the hosted schema
 probe and closed password access, not successful Google login. Earlier agent
