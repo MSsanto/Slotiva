@@ -6,6 +6,36 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Current cancellation acceptance: only this or all — 2026-10-22
+
+The owner reported another excessive cancellation after selecting November 6 and
+requested two explicit choices: cancel only this encounter, or cancel all.
+The accompanying cropped screenshots show October 30 at 13:00 still confirmed
+and absent from public availability. They do not show every affected occurrence,
+so the complete mutation scope cannot be independently established from them.
+
+The updated UI now offers "Cancelar só esta" and "Cancelar todas da série", each
+with confirmation. All means all future confirmed encounters in that same series,
+including earlier future dates, while historical encounters remain unchanged.
+The intermediate "from selected date onward" action is no longer in the UI; its
+API is retained for compatibility. Latest acceptance is pending publication.
+
+Recreate a fictional series and follow this concrete test:
+
+1. Click Cancelar só esta on a middle encounter, dismiss its confirmation, and
+   verify nothing changed. Repeat and confirm; only that occurrence is cancelled,
+   its slot is released and the other encounters remain confirmed/occupied.
+2. Click Cancelar todas da série from a remaining middle encounter and dismiss:
+   verify no change. Repeat and confirm: all remaining future encounters in that
+   series must be cancelled and released, including those before the clicked row.
+3. Verify another series of the same professional and another professional's
+   series remain unchanged. Repeat the bulk request to verify a safe no-op.
+
+This supersedes the intermediate UI instructions in the historical section below.
+Do not automatically restore previously cancelled encounters; recreate fictional
+appointments only after checking available times. Local regressions are distinct
+from owner acceptance and do not authorize a production release.
+
 ## Series cancellation acceptance and correction — 2026-10-22
 
 The owner supplied screenshots showing weekly agreed appointments at 15:00 on
@@ -23,12 +53,9 @@ that November 13 would survive a click on November 20 did not match that code.
 The correction requires fromBookingId and preserves encounters before the selected
 row even if they are future. This fix is locally tested; hosted retest is pending.
 
-After publishing the update, reload the professional UI. Recreate a fictional
-series for testing; already cancelled encounters are not automatically restored.
-Cancel from a middle occurrence using "Cancelar esta e próximas" and check the
-confirmation dialog's exact date/time. Verify earlier future occurrences remain
-confirmed/occupied, the selected and later ones are cancelled/released, and a
-repeat attempt does not change prior encounters. Do not infer tenant isolation,
+The intermediate cutoff test below was replaced by the current two-choice UI
+acceptance procedure above. The compatible fromBookingId API still requires its
+anchor and preserves earlier future encounters. Do not infer tenant isolation,
 fortnightly recurrence or concurrent conflict acceptance from these screenshots.
 
 ## Completed basic hosted booking cycle — 2026-10-22
@@ -323,10 +350,10 @@ all dates, local time and the final date. Repeat a request after an ambiguous
 network failure and verify no duplication. Arrange a conflicting later occurrence:
 the whole new series must fail with no partial dates. Confirm public availability
 hides those occupied intervals and another professional can still use that time.
-Cancel one occurrence, then use "Cancelar esta e próximas" on a middle occurrence.
-Verify earlier future encounters stay confirmed/occupied and only the selected
-and subsequent future encounters are cancelled/released. Check the dialog's date
-and time. Confirm preserved history and no automatic renewal.
+Exercise both current choices: Cancelar só esta must preserve all other
+encounters; Cancelar todas da série must cancel every remaining future encounter
+in that series, including earlier future dates. Check both confirmation-dismissal
+paths, released slots, preserved history and no automatic renewal.
 
 Exercise a public request (>=48h, within 14 days), pending status/deadline,
 professional approval/rejection, customer status polling and cancellation. At

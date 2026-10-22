@@ -92,12 +92,12 @@ export default function AdminPage() {
   });
   const cancelSeries = useMutation({
     mutationFn: (booking: Booking) =>
-      api(`/admin/series/${booking.seriesId}?fromBookingId=${booking.id}`, {
+      api(`/admin/series/${booking.seriesId}?scope=all`, {
         method: "DELETE",
       }),
-    onSuccess: (_, booking) => {
+    onSuccess: () => {
       setNotice(
-        `Encontros da série a partir de ${formatDate(booking.date)} às ${booking.time} cancelados. Encontros anteriores a essa data foram preservados.`,
+        "Todos os encontros futuros desta série foram cancelados. Encontros já realizados foram preservados.",
       );
       void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
       void client.invalidateQueries({ queryKey: ["availability"] });
@@ -303,26 +303,38 @@ export default function AdminPage() {
                 b.status === "pending_approval") && (
                 <button
                   className="text-button"
-                  disabled={cancel.isPending || decision.isPending}
-                  onClick={() => cancel.mutate(b.id)}
+                  disabled={
+                    cancel.isPending ||
+                    cancelSeries.isPending ||
+                    decision.isPending
+                  }
+                  onClick={() => {
+                    if (
+                      !b.seriesId ||
+                      window.confirm(
+                        `Cancelar somente o encontro de ${formatDate(b.date)} às ${b.time}? Os outros encontros da série serão preservados.`,
+                      )
+                    )
+                      cancel.mutate(b.id);
+                  }}
                 >
-                  Cancelar reserva
+                  {b.seriesId ? "Cancelar só esta" : "Cancelar reserva"}
                 </button>
               )}
               {b.seriesId && b.status === "confirmed" && (
                 <button
                   className="text-button"
-                  disabled={cancelSeries.isPending}
+                  disabled={cancelSeries.isPending || cancel.isPending}
                   onClick={() => {
                     if (
                       window.confirm(
-                        `Cancelar este encontro de ${formatDate(b.date)} às ${b.time} e todos os seguintes desta série? Encontros anteriores a essa data serão preservados.`,
+                        "Cancelar TODOS os encontros futuros desta série, inclusive os anteriores à data desta ocorrência? Encontros já realizados serão preservados.",
                       )
                     )
                       cancelSeries.mutate(b);
                   }}
                 >
-                  Cancelar esta e próximas
+                  Cancelar todas da série
                 </button>
               )}
             </div>

@@ -45,18 +45,24 @@ the same series, different contents under that key fail with 409. Unused random
 customer secrets are hashed and discarded; the professional route does not issue
 self-service customer access. The actor is stored on the series.
 
-Cancel one appointment with the existing route, or cancel the selected occurrence
-and subsequent future confirmed occurrences of its series. The latter requires a
-server-resolved fromBookingId owned by the same tenant and series. Earlier future
-encounters and historical occurrences remain unchanged. Repeated cancellation is
-safe; there is no implicit "from now" cutoff when an anchor is missing. The dialog
-names the selected date/time and the button says "Cancelar esta e próximas".
-The series remains active while earlier future confirmed encounters remain.
+## Explicit cancellation choices — revised 2026-10-22
 
-This supersedes the original all-future-from-now behavior, which could cancel
-encounters preceding the clicked row. The owner's report exposed the mismatch
-between the row-level action/test instructions and that original implementation.
-The changed boundary is intentional: the clicked occurrence determines the cutoff. Editing a series or moving a confirmed occurrence remains pending; cancel
+The owner's latest requirement is two visible actions: "Cancelar só esta" and
+"Cancelar todas da série". The former uses the individual booking route and
+preserves every other encounter. The latter sends scope=all explicitly and
+cancels every future confirmed occurrence in that owned series, including those
+before the clicked row. Historical encounters are preserved; other series and
+other professionals are never part of the selection. Both confirmations describe
+the scope. Declining either confirmation sends no request.
+
+This replaces the UI's intermediate "Cancelar esta e próximas" choice. Its
+fromBookingId API remains available for compatibility and still preserves earlier
+future encounters, but it is not a third visible option. Missing, unknown,
+duplicate or mixed scope selectors fail closed. Series status stays active after
+partial cancellation and becomes cancelled when no future confirmed encounters
+remain. Already cancelled rows are not reactivated or cancelled twice.
+
+Editing a series or moving a confirmed occurrence remains pending; cancel
 and explicitly recreate after checking availability. No Calendar event, email or
 invitation is sent; awaiting_integration is not delivery.
 

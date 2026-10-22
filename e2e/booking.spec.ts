@@ -155,7 +155,7 @@ test("Google-only setup never offers a password fallback", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-test("professional cancels one occurrence then a middle cutoff while preserving earlier future encounters", async ({
+test("professional explicitly chooses only this occurrence or all future series encounters", async ({
   page,
 }) => {
   await page.goto("/admin");
@@ -188,27 +188,51 @@ test("professional cancels one occurrence then a middle cutoff while preserving 
     .locator(".appointment")
     .filter({ hasText: "Recurring Browser Demo" });
   await expect(rows).toHaveCount(4);
-  await rows
-    .first()
-    .getByRole("button", { name: "Cancelar reserva", exact: true })
-    .click();
-  await expect(rows.first()).toContainText("Cancelado");
   page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Cancelar este encontro de");
-    expect(dialog.message()).toContain("às 11:00");
+    await dialog.dismiss();
+  });
+  await rows
+    .nth(2)
+    .getByRole("button", { name: "Cancelar só esta", exact: true })
+    .click();
+  await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(0);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Cancelar somente o encontro de");
     expect(dialog.message()).toContain(
-      "Encontros anteriores a essa data serão preservados.",
+      "Os outros encontros da série serão preservados.",
     );
     await dialog.accept();
   });
   await rows
     .nth(2)
-    .getByRole("button", { name: "Cancelar esta e próximas" })
+    .getByRole("button", { name: "Cancelar só esta", exact: true })
     .click();
-  await expect(rows.nth(1)).toContainText("Confirmado pelo profissional");
   await expect(rows.nth(2)).toContainText("Cancelado");
-  await expect(rows.nth(3)).toContainText("Cancelado");
-  await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("Confirmado pelo profissional");
+  await expect(rows.nth(1)).toContainText("Confirmado pelo profissional");
+  await expect(rows.nth(3)).toContainText("Confirmado pelo profissional");
+  page.once("dialog", async (dialog) => {
+    await dialog.dismiss();
+  });
+  await rows
+    .nth(1)
+    .getByRole("button", { name: "Cancelar todas da série", exact: true })
+    .click();
+  await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(1);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain(
+      "Cancelar TODOS os encontros futuros desta série",
+    );
+    expect(dialog.message()).toContain(
+      "inclusive os anteriores à data desta ocorrência",
+    );
+    await dialog.accept();
+  });
+  await rows
+    .nth(1)
+    .getByRole("button", { name: "Cancelar todas da série", exact: true })
+    .click();
+  await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(4);
 });
 
 test("master manages professionals and their public links in the UI (API fixtures)", async ({

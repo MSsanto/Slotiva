@@ -22,9 +22,10 @@ is in Portuguese; maintained documentation is in English. The browser title is
 - After agreeing with a client, the professional can directly confirm a single
   appointment or a weekly/fortnightly fixed-time series. There are 1–26 explicit
   occurrences within 366 days, no automatic renewal. Any conflict rejects the
-  whole series; retries cannot duplicate it. Cancel one occurrence or the selected
-  occurrence and subsequent future occurrences of its series. Earlier encounters
-  are preserved, including those still in the future; the dialog names the cutoff.
+  whole series; retries cannot duplicate it. Series rows offer two explicit choices:
+  "Cancelar só esta" preserves all other encounters; "Cancelar todas da série"
+  cancels every future confirmed encounter in that series, preserving past history.
+  Each choice requires confirmation. Other series/professionals are unaffected.
 - Occupancy keys include professional, date and minute. Two professionals can
   use the same time; concurrent overlaps for one professional cannot both win.
 - Suspension revokes sessions and hides the public page. Deletion additionally

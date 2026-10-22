@@ -377,13 +377,27 @@ async function route(request: Request, env: Env) {
     const seriesMatch = path.match(/^\/api\/admin\/series\/([^/]+)$/);
     if (seriesMatch && method === "DELETE") {
       const anchors = url.searchParams.getAll("fromBookingId");
+      const scopes = url.searchParams.getAll("scope");
       const anchor = bookingId.safeParse(anchors[0]);
-      if (anchors.length !== 1 || !anchor.success)
+      if (scopes.length === 1 && scopes[0] === "all" && anchors.length === 0) {
+        await cancelSeries(env, professionalId, seriesMatch[1], {
+          scope: "all",
+        });
+      } else if (
+        scopes.length === 0 &&
+        anchors.length === 1 &&
+        anchor.success
+      ) {
+        await cancelSeries(env, professionalId, seriesMatch[1], {
+          scope: "from",
+          fromBookingId: anchor.data,
+        });
+      } else {
         throw new HttpError(
           422,
-          "Selecione a ocorrência inicial do cancelamento.",
+          "Escolha explicitamente quais encontros cancelar.",
         );
-      await cancelSeries(env, professionalId, seriesMatch[1], anchor.data);
+      }
       return noContent();
     }
     if (path === "/api/admin/services" && method === "GET")

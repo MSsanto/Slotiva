@@ -162,3 +162,11 @@ For the selected-occurrence correction, all 77 Worker tests, production build,
 lint and formatting passed locally. Three new cases failed against the old
 implementation and passed after the change. Hosted and browser confirmation of
 this changed cancellation boundary remain pending.
+
+For the explicit one/all cancellation UI, Worker regressions cover single-row
+isolation, all future encounters (including earlier future ones), repeated bulk
+requests, other-series/other-tenant preservation, occupancy release and rejection
+of ambiguous scopes. The browser journey tests dismissal and acceptance of both
+confirmations and observes single versus all outcomes. All 80 Worker tests,
+production build, lint and formatting passed locally. Browser/hosted acceptance
+of the new choices remains pending; the existing cutoff API tests remain valid.

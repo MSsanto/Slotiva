@@ -4,6 +4,17 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Explicit cancel-only-this or cancel-all-series actions
+
+- Implements the owner's revised choice: Cancelar só esta preserves other
+  encounters; Cancelar todas da série cancels every future confirmed encounter of
+  that series and preserves historical encounters. Both require confirmation.
+- Adds explicit scope=all to bulk DELETE. Invalid, duplicate or mixed selectors
+  fail closed; the earlier anchored cutoff API remains compatible without a UI
+  option. Other series and other professionals remain isolated.
+- Adds Worker and browser regression cases for both scopes and dismissals.
+  Already cancelled encounters are not restored; hosted acceptance is pending.
+
 ## 2026-10-22 — Cancel recurring appointments from the selected occurrence
 
 - Fixes the row action sending only a series ID and cancelling every future

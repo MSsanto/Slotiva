@@ -583,6 +583,138 @@ describe("Professional-entered fixed recurrence", () => {
         .first("n"),
     ).toBe(4);
   });
+  it.each(["weekly", "fortnightly"])(
+    "offers isolated single and explicit all cancellation for %s series",
+    async (frequency) => {
+      const create = async (headers: Record<string, string>, extra = {}) =>
+        (await (
+          await request(
+            "/api/admin/series",
+            "POST",
+            series({ frequency, ...extra }),
+            headers,
+          )
+        ).json()) as { id: string; bookings: { id: string }[] };
+      const value = await create(authA);
+      const other = await create(authA, { time: "11:00" });
+      const foreign = await create(authB);
+      const states = async (id: string) =>
+        (
+          await db
+            .prepare(
+              "SELECT id,status,version FROM bookings WHERE series_id=? ORDER BY starts_at",
+            )
+            .bind(id)
+            .all<{ id: string; status: string; version: number }>()
+        ).results;
+      expect(
+        (
+          await request(
+            `/api/admin/bookings/${value.bookings[2].id}`,
+            "DELETE",
+            undefined,
+            authA,
+          )
+        ).status,
+      ).toBe(204);
+      expect((await states(value.id)).map((b) => b.status)).toEqual([
+        "confirmed",
+        "confirmed",
+        "cancelled",
+        "confirmed",
+      ]);
+      expect(
+        await db
+          .prepare("SELECT count(*) n FROM occupied_slots WHERE booking_id=?")
+          .bind(value.bookings[2].id)
+          .first("n"),
+      ).toBe(0);
+      expect(
+        await db
+          .prepare("SELECT count(*) n FROM occupied_slots WHERE booking_id=?")
+          .bind(value.bookings[0].id)
+          .first("n"),
+      ).toBeGreaterThan(0);
+      const path = `/api/admin/series/${value.id}?scope=all`;
+      expect((await request(path, "DELETE", undefined, authB)).status).toBe(
+        404,
+      );
+      expect((await request(path, "DELETE", undefined, authA)).status).toBe(
+        204,
+      );
+      const after = await states(value.id);
+      expect(after.map((b) => b.status)).toEqual([
+        "cancelled",
+        "cancelled",
+        "cancelled",
+        "cancelled",
+      ]);
+      expect(after.map((b) => b.version)).toEqual([2, 2, 2, 2]);
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) n FROM occupied_slots WHERE booking_id IN (SELECT id FROM bookings WHERE series_id=?)",
+          )
+          .bind(value.id)
+          .first("n"),
+      ).toBe(0);
+      expect(
+        await db
+          .prepare("SELECT status FROM booking_series WHERE id=?")
+          .bind(value.id)
+          .first("status"),
+      ).toBe("cancelled");
+      expect((await request(path, "DELETE", undefined, authA)).status).toBe(
+        204,
+      );
+      expect(await states(value.id)).toEqual(after);
+      expect(
+        (await states(other.id)).every((b) => b.status === "confirmed"),
+      ).toBe(true);
+      expect(
+        (await states(foreign.id)).every((b) => b.status === "confirmed"),
+      ).toBe(true);
+    },
+  );
+  it("rejects ambiguous bulk cancellation scopes without changing bookings", async () => {
+    const value = (await (
+      await request("/api/admin/series", "POST", series(), authA)
+    ).json()) as { id: string; bookings: { id: string }[] };
+    for (const query of [
+      "scope=",
+      "scope=unknown",
+      "scope=all&scope=all",
+      `scope=all&fromBookingId=${value.bookings[0].id}`,
+    ])
+      expect(
+        (
+          await request(
+            `/api/admin/series/${value.id}?${query}`,
+            "DELETE",
+            undefined,
+            authA,
+          )
+        ).status,
+      ).toBe(422);
+    expect(
+      (
+        await request(
+          `/api/admin/series/${crypto.randomUUID()}?scope=all`,
+          "DELETE",
+          undefined,
+          authA,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM bookings WHERE series_id=? AND status='confirmed'",
+        )
+        .bind(value.id)
+        .first("n"),
+    ).toBe(4);
+  });
   it("rolls back the whole series, slots, outbox and events if any later occurrence conflicts", async () => {
     const later = date();
     const d = new Date(`${later}T12:00:00Z`);

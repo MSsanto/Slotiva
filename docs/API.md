@@ -97,7 +97,8 @@ Requires the professional role. Every route below derives tenant from the sessio
 | POST /api/admin/bookings/{uuid}/approve or /reject | `{version}`; decision before 24h deadline, tenant checked                                               |
 | DELETE /api/admin/bookings/{uuid}                  | Cancel one active occurrence/booking, 204                                                               |
 | POST /api/admin/series                             | Explicit agreed single or finite recurring appointments, described below                                |
-| DELETE /api/admin/series/{uuid}?fromBookingId={uuid} | Cancel selected occurrence and later future confirmed occurrences; preserve earlier encounters; 204 |
+| DELETE /api/admin/series/{uuid}?scope=all            | Explicitly cancel every future confirmed encounter of the owned series; preserve past; 204 |
+| DELETE /api/admin/series/{uuid}?fromBookingId={uuid} | Compatibility: cancel selected/later future encounters; preserve earlier; 204 |
 
 Series input: `{requestId,serviceId,date,time,name,email,frequency,count}`.
 requestId is a caller-generated UUID for deduplication; frequency is once, weekly
@@ -153,19 +154,25 @@ The native Worker token transport now preserves global fetch's receiver. Request
 callback, credential and authorization contracts are unchanged; this fixes a
 pre-network runtime exception previously classified as exchange_unavailable.
 
-## Series cancellation cutoff
+## Explicit series cancellation scope
 
-DELETE /api/admin/series/{seriesId} now requires exactly one fromBookingId query
-parameter containing a UUID. Missing, malformed or duplicate anchors return 422
-without cancelling anything. Older clients omitting the anchor fail closed and
-must reload the updated UI. An anchor not belonging to both this series and the
-session's professional returns 404. The caller cannot supply a date or owner ID.
+The UI's "Cancelar só esta" uses DELETE /api/admin/bookings/{bookingId}; it affects
+only that owned occurrence. "Cancelar todas da série" uses DELETE
+/api/admin/series/{seriesId}?scope=all and cancels all future confirmed encounters
+of that owned series, including dates preceding the clicked row. Past encounters,
+already cancelled rows, other series and other professionals are preserved.
+Both UI actions require confirmation; dismissing sends no mutation.
 
-The server resolves starts_at from that owned occurrence, then atomically cancels
-only confirmed bookings of the same series/tenant with starts_at >= anchor and
-starts_at > current time. Earlier future and historical appointments are preserved.
-Existing cancellation triggers release occupancy and record transitions/outbox;
-already cancelled rows are untouched. Repeating the same request returns 204
-without additional versions or cancellations. A cancelled anchor remains valid
-for retry. Series status remains active while any future confirmed occurrence
-remains, otherwise cancelled. No migration or automatic restoration is performed.
+The preceding fromBookingId={uuid} cutoff remains supported for compatible clients,
+but the UI no longer offers that third choice. The server derives its cutoff from
+an occurrence owned by the same series/professional, never a caller-provided date.
+A request must contain exactly one scope=all with no anchor, or exactly one valid
+fromBookingId with no scope. Missing/unknown/duplicate/mixed selectors return 422
+without mutations. Missing/foreign series or mismatched anchors return 404.
+Bare DELETE never implicitly means "cancel all"; older clients must reload.
+
+Cancellation and series status update run in a transactional D1 batch. Existing
+triggers release occupancy and record transitions/outbox. Repeated requests return
+204 without new booking versions or repeated transition events. Series status
+remains active while any future confirmed encounter remains, otherwise cancelled.
+No migration or automatic restoration of previously cancelled appointments occurs.
