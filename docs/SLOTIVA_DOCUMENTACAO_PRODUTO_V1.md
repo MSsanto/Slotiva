@@ -190,8 +190,9 @@ professional approval with fictional data before inviting real clients. Follow
 The psychologist's professional-entered weekly/fortnightly workflow is now known.
 Still decide her duration/break, preferred finite horizon, cancellation rules,
 minors/guardian contacts, connected calendars, who funds/operates support and the
-email sender/domain. Per-tenant service editing, date exceptions and series edits
-are separate work. Payments and WhatsApp remain outside the initial increment.
+email sender/domain. Per-tenant service editing is implemented, with owner
+acceptance of blank terms in Ana's profile. Date exceptions and series edits
+remain separate work. Payments and WhatsApp remain outside the initial increment.
 
 The earlier R$0–40/month discussion is an unverified hosting hypothesis, not a
 quote or operating guarantee. Verify actual provider quotas/prices, usage, domain,

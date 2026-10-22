@@ -223,5 +223,9 @@ error messaging, interval rendering and disconnection confirmation. Real Google
 consent/provider permission checks remain owner acceptance, not mocked evidence.
 
 Local Calendar checks passed: 103 Worker tests across six files, the frontend test,
-production build, lint and formatting. This is source-level evidence; full browser
-CI and real Google consent are distinct verification steps.
+production build, lint and formatting. Application revision 8712ff8 also passed
+[full GitHub CI](https://github.com/MSsanto/Slotiva/actions/runs/39857300798), including
+11 Playwright journeys, isolated migration setup and Wrangler dry-run;
+[documentation CI](https://github.com/MSsanto/Slotiva/actions/runs/39857300737) passed.
+The Calendar browser journey uses API fixtures; real Google consent and permission
+checks remain a separate owner validation.

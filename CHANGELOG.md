@@ -16,6 +16,8 @@ meaning of earlier Portuguese entries, whose original wording remains in Git.
   failures never report free time. No public/confirmation conflict enforcement,
   Calendar events, invitations, email delivery or outbox consumer is claimed.
 - Adds migration 0008, regression coverage and owner setup/acceptance documentation.
+  Application 8712ff8 passed GitHub CI: 103 Worker tests and 11 browser journeys,
+  plus frontend/build/lint/format/migration/dry-run/documentation checks.
   Google console configuration, real consent and remote rollout remain pending.
 
 ## 2026-10-22 — Optional duration and paid amount
