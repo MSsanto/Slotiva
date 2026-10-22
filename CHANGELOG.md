@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Owner validates positive hosted scheduling path
+
+- Records owner-reported master login and fictional professional creation after
+  the native fetch fix, plus screenshots of the public page and professional
+  agenda with a public request awaiting approval.
+- Distinguishes this evidence from completed approval, recurrence, cancellation,
+  negative authorization and tenant-isolation acceptance, which remain pending.
+- Documentation-only evidence update; no production release or new deployment.
+
 ## 2026-10-22 — Fix native Cloudflare fetch receiver in OAuth exchange
 
 - Fixes the production fetch dependency default: call globalThis.fetch through an

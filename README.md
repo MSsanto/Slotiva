@@ -106,8 +106,10 @@ The owner also supplied a successful 0.5.0 Preview upload for this branch at
 https://feat-product-readiness-slotiva.matheus-sergio.workers.dev.
 PUBLIC_ORIGIN is set to that stable Preview origin, and the owner-supplied public
 GOOGLE_CLIENT_ID is registered only in previews.vars. On 2026-10-22 the owner supplied successful Preview-scoped Client Secret creation
-output. The verified master subject and real Google sign-in remain pending;
-[human setup](docs/HUMAN_VALIDATION.md) includes an official Google UserInfo procedure. The owner’s notebook checks returned
+output. After the native transport fix, the owner reported successful master sign-in and
+professional creation, and supplied public-page and pending-request agenda
+screenshots. Approval completion and remaining negative/role/recurrence acceptance
+are still pending; see [human validation](docs/HUMAN_VALIDATION.md). The owner’s notebook checks returned
 health status=ok/storage=D1/approvalWorkflow=true and auth config
 googleEnabled=false/passwordEnabled=false. This establishes the hosted schema
 probe and closed password access, not successful Google login. Earlier agent

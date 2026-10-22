@@ -1,7 +1,9 @@
 # ADR 008 — Google identity and independent authorization
 
-Status: implemented and tested with signed synthetic tokens; real OAuth client,
-consent and hosted session validation await [human setup](HUMAN_VALIDATION.md).
+Status: implemented and tested with signed synthetic tokens and native workerd
+transport. The owner reports positive hosted master login and professional
+provisioning after the transport fix. Remaining negative authorization, session
+revocation and end-to-end acceptance await [human validation](HUMAN_VALIDATION.md).
 
 ## Decision
 

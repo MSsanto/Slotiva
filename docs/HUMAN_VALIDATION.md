@@ -6,6 +6,29 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Latest owner acceptance evidence — 2026-10-22
+
+After the native fetch receiver fix, the owner reported successful master sign-in
+and creation of a fictional professional. The owner supplied the public page URL
+`/p/profissionalteste` and a screenshot showing its professional name/header,
+service selection and date picker. The owner then confirmed the flow works and
+supplied a screenshot of the professional agenda showing a fictional public
+request for October 29 at 16:00, pending approval, with Approve/Reject/Cancel
+controls and an October 23 approval deadline. No account identifiers or client
+contact details are retained in this acceptance record.
+
+This is owner-reported hosted evidence plus screenshot inspection, distinct from
+independent agent access. It establishes positive master access/provisioning,
+public page rendering and a request visible in the professional agenda as pending.
+It does not establish approval completion, customer receipt after approval,
+double-booking prevention in that hosted flow, recurring agreements, cancellation,
+unauthorized-account rejection, revocation or tenant isolation acceptance.
+
+Next: approve the fictional request and verify the customer receipt changes to
+confirmed and a conflicting public request cannot reserve the occupied interval.
+Continue the negative authorization, recurrence and cancellation checks below.
+Email delivery and Google Calendar integration remain unimplemented.
+
 ## 1. Prepare isolated storage and the exact branch
 
 Check out the PR branch, pull it and run npm ci. Read migrations 0002–0005 and
