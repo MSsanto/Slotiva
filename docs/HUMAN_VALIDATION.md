@@ -145,6 +145,48 @@ bootstrap endpoint. Confirm how the Cloudflare dashboard scopes Preview secrets;
 do not assume production secrets are inherited. Never paste tokens/secrets into
 chat, PRs, logs or screenshots. Do not enable demo/password fallback to bypass setup.
 
+### Recorded Preview secret setup — 2026-10-22
+
+The owner supplied successful Wrangler output for Preview publication
+9e7011cd and then Preview-scoped GOOGLE_CLIENT_SECRET creation on Worker slotiva,
+Preview feat/product-readiness, deployment
+55ae0ab2-27c3-4841-b6e3-af4cddd0c589. This confirms the operator reported saving a
+secret under the correct name and scope; it does not validate its value or a
+real OAuth exchange. No secret value was received or committed. The verified
+master subject and real sign-in checks remain pending.
+
+### Obtain the intended master's Google subject
+
+An operator can obtain the account identity directly from Google's authenticated
+UserInfo endpoint using the official OAuth 2.0 Playground. This procedure does
+not change Slotiva's OAuth client or callback and does not replace Slotiva's
+server-side ID-token verification.
+
+1. Open [Google OAuth Playground](https://developers.google.com/oauthplayground/).
+   Reset settings if previously customized. Keep OAuth endpoints set to Google,
+   use the Playground's default client (leave Use your own OAuth credentials
+   unchecked), and set Access type to Online. Do not enter Slotiva's Client Secret.
+2. Under Step 1, enter scopes `openid email`, click Authorize APIs and personally
+   select the intended master account. Review the requested identity permissions.
+3. Under Step 2, click Exchange authorization code for tokens. Keep tokens inside
+   the Playground; do not copy them into chat, logs or token-decoding websites.
+4. Under Step 3, select GET and use the exact Request URI
+   `https://openidconnect.googleapis.com/v1/userinfo`. Keep access-token placement
+   as Authorization header with Bearer prefix. Click Send the request.
+5. Require HTTP 200 and check that the returned email is the intended account
+   and email_verified is true. Copy only the exact `sub` string into Wrangler's
+   interactive MASTER_GOOGLE_SUBS prompt below. Preserve all digits. Do not use
+   the OAuth Client ID, project number, email, or a subject from another account.
+
+Google documents `sub` as an immutable account identifier and advertises public
+subject identifiers in its discovery document. The authenticated Google UserInfo
+response, rather than unverified JWT decoding, establishes the subject here.
+After recording the subject privately, revoke the Playground grant in Google
+Account's third-party connections; do not remove the Slotiva grant by mistake.
+
+References: [Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect),
+[Google discovery document](https://accounts.google.com/.well-known/openid-configuration).
+
 ### Apply the public configuration and Preview secrets
 
 From the repository on the Windows notebook, run these commands separately:
@@ -171,9 +213,8 @@ Invoke-RestMethod "https://feat-product-readiness-slotiva.matheus-sergio.workers
 
 Expected after complete setup: googleEnabled=true and passwordEnabled=false.
 The first secret alone does not enable login: settings require a nonempty master
-allowlist too. This repository currently has no assisted subject-verification
-bootstrap utility; obtaining the verified master subject remains an explicit setup
-blocker. Do not invent a subject, use an email/client ID instead, or temporarily
+allowlist too. This repository currently has no automated subject-verification utility; use the
+operator procedure above to obtain the verified master subject before proceeding. Do not invent a subject, use an email/client ID instead, or temporarily
 open registration to resolve it. A true config flag proves configuration presence,
 not a successful or correctly authorized sign-in; complete the role checks below.
 

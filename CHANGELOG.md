@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Owner confirms Preview secret creation
+
+- Records owner-provided Preview deployment and GOOGLE_CLIENT_SECRET creation
+  output without receiving or storing the secret value.
+- Documents an operator-only Google OAuth Playground/UserInfo procedure to
+  obtain the verified master subject without changing Slotiva's OAuth callback.
+- Master allowlist, actual secret validity and real OAuth acceptance remain
+  unverified. No application code or production resource was changed.
+
 ## 2026-10-22 — Preview OAuth setup instructions consolidated
 
 - Carries the existing OAuth Client ID registration into the product-readiness
