@@ -6,6 +6,27 @@ console actions and validate real Google behavior; local tests cannot establish
 those external settings. Do not merge into the Cloudflare-connected main branch
 before coordinating the schema/code release.
 
+## Completed basic hosted booking cycle — 2026-10-22
+
+Following the positive login/provisioning evidence below, the owner supplied a
+screenshot showing the fictional October 29, 16:00 request as confirmed by the
+professional. A public availability screenshot for the same date omitted 16:00;
+the owner explicitly confirmed it was the same professional page despite changed
+public header text. Subsequent paired screenshots show the reservation cancelled
+in the agenda and 16:00 available again on October 29 for the same service/page.
+No client contact details or account identifiers are retained here.
+
+This completes the owner-observed basic cycle in the isolated Preview: public
+request, professional approval, occupied time absent from availability,
+professional cancellation, and time visible again. Evidence consists of owner
+reports and screenshot inspection, not an independent agent browser run.
+
+The customer's receipt after approval, actual concurrent conflicting submissions,
+recurrence, series cancellation, negative authorization, suspension/revocation and
+cross-professional isolation still require hosted acceptance. The visible time
+list alone is not proof of a concurrent write-conflict test. Email and Calendar
+integration remain unavailable. This is not production release approval.
+
 ## Latest owner acceptance evidence — 2026-10-22
 
 After the native fetch receiver fix, the owner reported successful master sign-in
@@ -24,9 +45,10 @@ It does not establish approval completion, customer receipt after approval,
 double-booking prevention in that hosted flow, recurring agreements, cancellation,
 unauthorized-account rejection, revocation or tenant isolation acceptance.
 
-Next: approve the fictional request and verify the customer receipt changes to
-confirmed and a conflicting public request cannot reserve the occupied interval.
-Continue the negative authorization, recurrence and cancellation checks below.
+The subsequent basic-cycle evidence above supersedes the pending approval and
+professional cancellation steps in this earlier record. Customer receipt and
+concurrent conflict checks remain pending. Continue negative authorization,
+recurrence and series cancellation checks below.
 Email delivery and Google Calendar integration remain unimplemented.
 
 ## 1. Prepare isolated storage and the exact branch

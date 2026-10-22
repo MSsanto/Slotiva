@@ -108,8 +108,11 @@ PUBLIC_ORIGIN is set to that stable Preview origin, and the owner-supplied publi
 GOOGLE_CLIENT_ID is registered only in previews.vars. On 2026-10-22 the owner supplied successful Preview-scoped Client Secret creation
 output. After the native transport fix, the owner reported successful master sign-in and
 professional creation, and supplied public-page and pending-request agenda
-screenshots. Approval completion and remaining negative/role/recurrence acceptance
-are still pending; see [human validation](docs/HUMAN_VALIDATION.md). The owner’s notebook checks returned
+screenshots. Further screenshots show professional approval, occupied time absent
+from public availability, cancellation and that time available again on the same
+professional page. Customer receipt, concurrent conflict submissions and remaining
+negative/role/recurrence acceptance are still pending; see
+[human validation](docs/HUMAN_VALIDATION.md). The owner’s notebook checks returned
 health status=ok/storage=D1/approvalWorkflow=true and auth config
 googleEnabled=false/passwordEnabled=false. This establishes the hosted schema
 probe and closed password access, not successful Google login. Earlier agent
