@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "slotiva-preview-migrations",
+  "compatibility_date": "2026-10-19",
+  // Dedicated homologation only; never target production or the older shared Preview.
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "slotiva-product-homologation",
+      "database_id": "74b37b6b-7f9e-40a3-b685-546d7a0a76ac",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

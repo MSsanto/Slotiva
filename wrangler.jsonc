@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "slotiva",
-  "preview_urls": false,
+  "preview_urls": true,
   "main": "worker/index.ts",
   "build": { "command": "npm run build" },
   "compatibility_date": "2026-10-19",
@@ -19,5 +19,19 @@
       "migrations_dir": "migrations",
     },
   ],
-  "vars": { "COOKIE_SECURE": "true" },
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "demo" },
+  // Dedicated product-homologation D1; production and the older Preview stay separate.
+  // Apply migrations with the matching PREVIEW_DB config before testing this Preview.
+  "previews": {
+    "vars": { "COOKIE_SECURE": "true", "AUTH_MODE": "google", "GOOGLE_CLIENT_ID": "1021260164493-bcse5qjedmr74meajund6fipmbt98g9r.apps.googleusercontent.com", "PUBLIC_ORIGIN": "https://feat-product-readiness-slotiva.matheus-sergio.workers.dev" },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "slotiva-product-homologation",
+        "database_id": "74b37b6b-7f9e-40a3-b685-546d7a0a76ac",
+        "migrations_dir": "migrations"
+      }
+    ]
+  }
 }

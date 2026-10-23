@@ -613,3 +613,71 @@ h2:focus {
   flex-shrink: 0;
   white-space: nowrap;
 }
+
+.tenant-navy {
+  --accent: #1d426a;
+  color: #1d426a;
+}
+.tenant-plum {
+  --accent: #60335c;
+  color: #60335c;
+}
+.hours input:not([type="checkbox"]),
+.hours select,
+.hours textarea {
+  max-width: 100%;
+  width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  border: 1px solid #b3c1a9;
+  background: #fdfefb;
+  color: #223c36;
+  font-size: 16px;
+}
+.hours label {
+  display: block;
+  margin-bottom: 0.7rem;
+}
+.appointment > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tenant-navy h1 {
+  color: #1d426a;
+}
+.tenant-plum h1 {
+  color: #60335c;
+}
+
+.booking-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 12px;
+  border-bottom: 1px solid #dfe5d9;
+  padding-bottom: 12px;
+}
+.booking-tabs [role="tab"] {
+  border: 1px solid #cad6c6;
+  padding: 10px 16px;
+  background: #fff;
+  font-weight: 600;
+  min-height: 44px;
+}
+.booking-tabs [aria-selected="true"] {
+  background: #284f42;
+  border-color: #284f42;
+  color: #fff;
+}
+
+.service-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid #dfe5d9;
+  padding: 12px 0;
+}
