@@ -8,12 +8,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: node --test scripts/check-docs.test.mjs
       - run: node scripts/check-docs.mjs
-        env:
-          DOCS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}

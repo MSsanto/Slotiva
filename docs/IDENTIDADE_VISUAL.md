@@ -1,27 +1,19 @@
-# Slotiva visual identity
+# Visual identity
 
-Owner-approved applications, recorded on 2026-10-21. This English revision
-preserves the decisions from main's visual identity commit ee76caa.
+**Slotiva — horários livres que viram encontros.**
 
-| Variant       | Composition                     | Application                |
-| ------------- | ------------------------------- | -------------------------- |
-| Full logo     | Symbol + “slotiva” + tagline    | Presentation and home page |
-| Compact brand | Symbol + “slotiva”, no tagline  | Application header         |
-| Symbol        | Symbol only, no name or tagline | Favicon and mobile icon    |
+The name combines “slot”, an available time, with “ativa”, suggesting an active
+agenda. The logo uses leaf/tree and star references with a light, poetic style.
 
-Tagline: **horários livres que viram encontros.** The name combines “slot”, an
-available appointment time, with “ativa”, suggesting an active agenda. The light,
-poetic identity references a leaf/tree and star.
+| Variant | Use |
+| --- | --- |
+| Symbol + slotiva + tagline | Home page and presentations |
+| Symbol + slotiva | Application header |
+| Symbol only | Favicon and mobile icon |
 
-Preserve the approved drawing and proportions. Do not shrink the full logo into
-a favicon: export the symbol. Use transparent PNG where needed. Check symbol
-legibility at 16/32 pixels and contrast/spacing/leaf/star integrity on light and
-dark backgrounds. The header's brand link needs an accessible “Slotiva — início”
-name. Provide name/tagline in image alternative text when not available as adjacent
-text. Browser/mobile icons alone do not establish an installable PWA.
+Preserve the drawing's proportions. Use the symbol at small sizes rather than
+shrinking the complete logo. Check legibility at 16 and 32 pixels, contrast on
+light/dark backgrounds and an accessible name for the home link.
 
-The three final exports, favicon/mobile icon files and application of the approved
-raster mark are pending; the UI currently uses a textual brand. Professional header
-text/theme customization is implemented separately and does not replace the
-platform logo or imply arbitrary uploaded-logo support. Do not claim a brand-asset
-deployment from this document.
+The application currently uses a text brand; exported logo assets still need
+to be integrated. Professional page themes are separate from the platform brand.

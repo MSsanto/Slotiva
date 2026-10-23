@@ -97,7 +97,7 @@ No administrative listing is public.
 - GET `/api/admin/session`: authenticated, role, professionalId (null for master).
 - POST `/api/admin/logout`: Origin required; revokes current session, 204.
 
-See [Google protocol](GOOGLE_AUTH.md). Session lifetime is eight hours, with
+See [Google protocol](ARCHITECTURE.md#authentication). Session lifetime is eight hours, with
 provider/subject/role/tenant validation on each protected request. Cookie path
 is `/api`; legacy `/api/admin` cookies are cleared on session changes.
 
@@ -176,7 +176,7 @@ not presumed; request-time cleanup still applies.
 GET `/api/health` probes approval, identity, tenancy and recurrence schema; 200
 `{status:ok,storage:D1,approvalWorkflow:true}` or 503. It does not certify Google,
 mail, Calendar or backup availability. Outbox state awaiting_integration means
-no external delivery. Follow [rollout](HUMAN_VALIDATION.md); migrations must not
+no external delivery. Follow [rollout](OPERATIONS.md); migrations must not
 run against an old writable Worker or the old shared Preview.
 
 ## Google callback failure diagnostics
@@ -197,10 +197,6 @@ The login UI maps known stages to Portuguese guidance and uses a generic fallbac
 Authorization is reported only after cryptographic identity verification; no
 specific subject, invitation or master membership is disclosed. No checks are
 bypassed and failures create no authenticated session.
-
-The native Worker token transport now preserves global fetch's receiver. Request,
-callback, credential and authorization contracts are unchanged; this fixes a
-pre-network runtime exception previously classified as exchange_unavailable.
 
 ## Explicit series cancellation scope
 
@@ -245,9 +241,17 @@ Invalid dates are 422; absent/revoked connection is 409; provider/key failures a
 Suspension/removal/identity change deletes credentials. Public availability,
 approval and agreed-series creation do not yet consult this external data.
 There is no Calendar event/invite endpoint or outbox delivery in this increment.
-See [ADR 011](CALENDAR_CONNECTION.md) for encryption, races, setup and limitations.
+See [Calendar connection](CALENDAR_CONNECTION.md) for encryption, races, setup and limitations.
 
+## Calendar callback diagnostics
 
-## Calendar failure redirect
+The Calendar callback redirects to `/admin?calendar=connected` on success or
+`/admin?calendar=failed&calendar_reason=CODE` on failure. Both responses use
+`Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
 
-GET /api/admin/calendar/callback returns 303 to /admin?calendar=connected on success, or /admin?calendar=failed&calendar_reason=<fixed-code> on failure. Both redirects use Cache-Control: no-store and Referrer-Policy: no-referrer. Fixed codes: configuration, transaction, consent, exchange, exchange_invalid_client, exchange_invalid_grant, exchange_unauthorized_client, exchange_redirect_uri_mismatch, grant, scope, identity, account, encryption, storage, session and internal. Provider error mapping accepts only exact allowlisted codes on HTTP 400/401; all other exchange failures use exchange. Raw responses and exception messages are not included. Unknown UI codes use generic guidance and are not rendered. Authentication and callback state protections remain unchanged.
+Codes are configuration, transaction, consent, exchange, exchange_invalid_client,
+exchange_invalid_grant, exchange_unauthorized_client,
+exchange_redirect_uri_mismatch, grant, scope, identity, account, encryption,
+storage, session or internal. Provider mappings accept only exact allowlisted
+codes on HTTP 400/401; other exchange failures use exchange. Unknown UI codes
+use generic guidance. Provider bodies, tokens and exception messages are omitted.
