@@ -98,3 +98,8 @@ by local mocks or CI. No invitation or email should be expected in this incremen
 Primary references: [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server),
 [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth),
 [Freebusy query](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query).
+
+
+## Connection troubleshooting
+
+If the panel reports calendar=failed, use its displayed code after publishing this diagnostic increment. configuration requires checking Preview OAuth/origin/key settings; transaction or session requires starting again in a live professional session; consent or scope requires explicit Calendar approval; exchange_invalid_client requires checking the client ID/secret pair; exchange_invalid_grant requires a fresh attempt and verification of the exact Calendar redirect URI if persistent. grant means required token response fields were absent or invalid. identity/account requires a valid signed same-account result. encryption/storage requires operator investigation. Other exchange failures can be retried. Codes locate the failure stage, not a proven root cause. Never paste tokens, raw provider responses or secrets into an issue. No new migration is required. Real consent must be retested after the matching Preview is published.

@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, afterAll, it, expect, vi } from "vitest";
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
 import {
   calendarScope,
+  calendarFailure,
   calendarStatus,
   startCalendar,
   completeCalendar,
@@ -421,4 +422,96 @@ it("rejects invalid dates and credentials encrypted under a different key", asyn
     ),
   ).rejects.toMatchObject({ status: 503 });
   expect((await calendarStatus(env(), a)).state).toBe("reconnect_required");
+});
+
+it("reports allowlisted exchange failures without leaking provider text and consumes state", async () => {
+  for (const [provider, expected] of [
+    ["invalid_client", "exchange_invalid_client"],
+    ["invalid_grant", "exchange_invalid_grant"],
+    ["unauthorized_client", "exchange_unauthorized_client"],
+    ["redirect_uri_mismatch", "exchange_redirect_uri_mismatch"],
+    ["secret-injected-text", "exchange"],
+    ["__proto__", "exchange"],
+  ]) {
+    const auth = await begin();
+    const fetcher = vi.fn(async () =>
+      Response.json(
+        {
+          error: provider,
+          error_description: secret,
+        },
+        { status: 400 },
+      ),
+    );
+    let failure: unknown;
+    try {
+      await completeCalendar(callback(auth), env(), a, {
+        fetch: fetcher,
+        keys,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    const response = calendarFailure(failure);
+    expect(response.headers.get("Location")).toBe(
+      `/admin?calendar=failed&calendar_reason=${expected}`,
+    );
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(JSON.stringify([...response.headers])).not.toContain(secret);
+    await expect(
+      completeCalendar(callback(auth), env(), a, { fetch: fetcher, keys }),
+    ).rejects.toMatchObject({ stage: "transaction" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await calendarStatus(env(), a)).state).toBe("disconnected");
+  }
+});
+it("distinguishes consent, grant, scope, identity and account failures", async () => {
+  for (const stage of ["consent", "grant", "scope", "identity", "account"]) {
+    const auth = await begin();
+    const tokens = await grant(
+      auth,
+      stage === "identity"
+        ? { nonce: "wrong" }
+        : stage === "account"
+          ? { sub: b.subject }
+          : {},
+    );
+    if (stage === "account")
+      tokens.id_token = await new SignJWT({
+        nonce: auth.searchParams.get("nonce"),
+      })
+        .setProtectedHeader({ alg: "RS256", kid: "fixture" })
+        .setSubject(b.subject)
+        .setAudience("calendar-client")
+        .setIssuer("https://accounts.google.com")
+        .setIssuedAt()
+        .setExpirationTime("5m")
+        .sign(pair.privateKey);
+    if (stage === "grant") tokens.refresh_token = "";
+    if (stage === "scope") tokens.scope = "openid";
+    const req =
+      stage === "consent"
+        ? request(
+            `/api/admin/calendar/callback?state=${auth.searchParams.get("state")}&error=arbitrary-secret`,
+          )
+        : callback(auth);
+    try {
+      await completeCalendar(req, env(), a, {
+        keys,
+        fetch: async () => Response.json(tokens),
+      });
+      expect.unreachable();
+    } catch (error) {
+      expect(calendarFailure(error).headers.get("Location")).toBe(
+        `/admin?calendar=failed&calendar_reason=${stage}`,
+      );
+    }
+    expect((await calendarStatus(env(), a)).state).toBe("disconnected");
+  }
+});
+it("does not reflect arbitrary failures or query text", () => {
+  expect(calendarFailure(new Error(secret)).headers.get("Location")).toBe(
+    "/admin?calendar=failed&calendar_reason=internal",
+  );
 });

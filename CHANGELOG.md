@@ -4,6 +4,15 @@ Recorded history begins on 2026-10-21. Earlier work remains in Git; it is not
 reconstructed as a release without evidence. This English revision preserves the
 meaning of earlier Portuguese entries, whose original wording remains in Git.
 
+## 2026-10-22 — Safe Calendar connection diagnostics
+
+- Replaces the undifferentiated callback failure with fixed stage codes and
+  actionable professional-panel guidance, including allowlisted OAuth refusals.
+- Keeps credentials, provider descriptions and arbitrary query values out of
+  redirects and displayed messages. Callback redirects disable caching.
+- Adds regression and browser-fixture coverage; no migration or provider scope
+  change. Hosted failure cause and successful real consent remain unverified.
+
 ## 2026-10-22 — Separate Google Calendar consent and manual availability
 
 - Records owner-reported successful login and blank service terms in Ana's profile.

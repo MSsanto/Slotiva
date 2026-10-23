@@ -213,3 +213,8 @@ correct global receiver. A runtime regression test bundles the actual Worker,
 starts OAuth against D1, and intercepts outbound transport without replacing
 native fetch. The previous dependency-object call failed before network I/O even
 though Node-based mock tests passed. Real hosted sign-in still requires acceptance.
+
+
+## Calendar callback diagnostics
+
+Calendar callback failures now redirect to a fixed calendar_reason code and show actionable Portuguese guidance. Reasons distinguish configuration, session/transaction, consent, token exchange, grant/scope, identity/account, encryption and storage. Provider text, tokens and account identifiers are never reflected. This diagnoses a failed connection; it does not establish successful hosted consent.

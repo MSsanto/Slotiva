@@ -172,6 +172,49 @@ export async function startCalendar(request: Request, env: Env, p: Principal) {
     headers: { Location: auth.toString(), "Referrer-Policy": "no-referrer" },
   });
 }
+type CalendarStage =
+  | "configuration"
+  | "transaction"
+  | "consent"
+  | "exchange"
+  | "exchange_invalid_client"
+  | "exchange_invalid_grant"
+  | "exchange_unauthorized_client"
+  | "exchange_redirect_uri_mismatch"
+  | "grant"
+  | "scope"
+  | "identity"
+  | "account"
+  | "encryption"
+  | "storage";
+
+class CalendarConnectionFailure extends HttpError {
+  readonly stage: CalendarStage;
+  constructor(stage: CalendarStage, error: unknown) {
+    super(
+      error instanceof HttpError ? error.status : 500,
+      "Não foi possível conectar Google Agenda.",
+    );
+    this.stage = stage;
+  }
+}
+export function calendarFailure(error: unknown) {
+  const reason =
+    error instanceof CalendarConnectionFailure
+      ? error.stage
+      : error instanceof HttpError &&
+          (error.status === 401 || error.status === 403)
+        ? "session"
+        : "internal";
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: `/admin?calendar=failed&calendar_reason=${reason}`,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    },
+  });
+}
 type Transport = typeof fetch;
 const transport: Transport = (input, init) => globalThis.fetch(input, init);
 async function post(url: string, body: URLSearchParams, fetcher: Transport) {
@@ -189,99 +232,135 @@ export async function completeCalendar(
   p: Principal,
   deps: { fetch: Transport; keys?: JWTVerifyGetKey } = { fetch: transport },
 ) {
-  const owner = professional(p),
-    cfg = configuration(env);
-  await key(env);
-  const url = new URL(request.url),
-    state = url.searchParams.get("state") ?? "";
-  if (url.origin !== cfg.origin || !/^[a-f0-9]{64}$/.test(state))
-    throw new HttpError(401, "Conexão expirada. Reinicie a conexão.");
-  const stateHash = await digest(state),
-    sessionHash = await digest(cookieToken(request));
-  const txn = await env.DB.prepare(
-    "UPDATE calendar_oauth_transactions SET consumed=1 WHERE state_hash=? AND professional_id=? AND subject=? AND session_hash=? AND expires_at>? AND consumed=0 RETURNING nonce,verifier",
-  )
-    .bind(stateHash, owner, p.subject, sessionHash, now())
-    .first<{ nonce: string; verifier: string }>();
-  if (!txn) throw new HttpError(401, "Conexão expirada. Reinicie a conexão.");
+  let stage: CalendarStage = "configuration";
   try {
-    const code = url.searchParams.get("code") ?? "";
-    if (url.searchParams.has("error") || !code || code.length > 4096)
-      throw new HttpError(401, "Conexão não autorizada.");
-    const response = await post(
-      "https://oauth2.googleapis.com/token",
-      new URLSearchParams({
-        client_id: env.GOOGLE_CLIENT_ID!,
-        client_secret: env.GOOGLE_CLIENT_SECRET!,
-        code,
-        code_verifier: txn.verifier,
-        redirect_uri: cfg.redirect,
-        grant_type: "authorization_code",
-      }),
-      deps.fetch,
-    );
-    if (!response.ok) throw unavailable();
-    const tokens = z
-      .object({
-        id_token: z.string().min(1).max(16384),
-        refresh_token: z.string().min(1).max(8192),
-        token_type: z.literal("Bearer"),
-        scope: z.string().max(4096),
-      })
-      .parse(await response.json());
-    if (!tokens.scope.split(" ").includes(calendarScope))
-      throw new HttpError(403, "Permissão de disponibilidade não concedida.");
-    const claims = await verifyGoogleClaims(
-      tokens.id_token,
-      env,
-      txn.nonce,
-      deps.keys,
-    );
-    if (claims.sub !== p.subject)
-      throw new HttpError(
-        403,
-        "Escolha a mesma conta Google usada no painel profissional.",
+    const owner = professional(p),
+      cfg = configuration(env);
+    await key(env);
+    stage = "transaction";
+    const url = new URL(request.url),
+      state = url.searchParams.get("state") ?? "";
+    if (url.origin !== cfg.origin || !/^[a-f0-9]{64}$/.test(state))
+      throw new HttpError(401, "Conexão expirada. Reinicie a conexão.");
+    const stateHash = await digest(state),
+      sessionHash = await digest(cookieToken(request));
+    const txn = await env.DB.prepare(
+      "UPDATE calendar_oauth_transactions SET consumed=1 WHERE state_hash=? AND professional_id=? AND subject=? AND session_hash=? AND expires_at>? AND consumed=0 RETURNING nonce,verifier",
+    )
+      .bind(stateHash, owner, p.subject, sessionHash, now())
+      .first<{ nonce: string; verifier: string }>();
+    if (!txn) throw new HttpError(401, "Conexão expirada. Reinicie a conexão.");
+    try {
+      stage = "consent";
+      const code = url.searchParams.get("code") ?? "";
+      if (url.searchParams.has("error") || !code || code.length > 4096)
+        throw new HttpError(401, "Conexão não autorizada.");
+      stage = "exchange";
+      const response = await post(
+        "https://oauth2.googleapis.com/token",
+        new URLSearchParams({
+          client_id: env.GOOGLE_CLIENT_ID!,
+          client_secret: env.GOOGLE_CLIENT_SECRET!,
+          code,
+          code_verifier: txn.verifier,
+          redirect_uri: cfg.redirect,
+          grant_type: "authorization_code",
+        }),
+        deps.fetch,
       );
-    const encrypted = await encryptCalendarToken(
-      env,
-      owner,
-      p.subject,
-      tokens.refresh_token,
-    );
-    const result = await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO calendar_connections(professional_id,subject,encrypted_refresh_token,generation)
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as {
+          error?: unknown;
+        } | null;
+        // Exact allowlist only: never reflect descriptions or arbitrary provider text.
+        if (response.status === 400 || response.status === 401) {
+          switch (result?.error) {
+            case "invalid_client":
+              stage = "exchange_invalid_client";
+              break;
+            case "invalid_grant":
+              stage = "exchange_invalid_grant";
+              break;
+            case "unauthorized_client":
+              stage = "exchange_unauthorized_client";
+              break;
+            case "redirect_uri_mismatch":
+              stage = "exchange_redirect_uri_mismatch";
+              break;
+          }
+        }
+        throw unavailable();
+      }
+      stage = "grant";
+      const tokens = z
+        .object({
+          id_token: z.string().min(1).max(16384),
+          refresh_token: z.string().min(1).max(8192),
+          token_type: z.literal("Bearer"),
+          scope: z.string().max(4096),
+        })
+        .parse(await response.json());
+      stage = "scope";
+      if (!tokens.scope.split(" ").includes(calendarScope))
+        throw new HttpError(403, "Permissão de disponibilidade não concedida.");
+      stage = "identity";
+      const claims = await verifyGoogleClaims(
+        tokens.id_token,
+        env,
+        txn.nonce,
+        deps.keys,
+      );
+      stage = "account";
+      if (claims.sub !== p.subject)
+        throw new HttpError(
+          403,
+          "Escolha a mesma conta Google usada no painel profissional.",
+        );
+      stage = "encryption";
+      const encrypted = await encryptCalendarToken(
+        env,
+        owner,
+        p.subject,
+        tokens.refresh_token,
+      );
+      stage = "storage";
+      const result = await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO calendar_connections(professional_id,subject,encrypted_refresh_token,generation)
         SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM calendar_oauth_transactions WHERE state_hash=? AND consumed=1 AND expires_at>unixepoch())
         AND EXISTS(SELECT 1 FROM professionals WHERE id=? AND google_subject=? AND status='active')
         AND EXISTS(SELECT 1 FROM sessions WHERE token_hash=? AND subject=? AND professional_id=? AND role='professional' AND expires_at>unixepoch())
         ON CONFLICT(professional_id) DO UPDATE SET subject=excluded.subject,encrypted_refresh_token=excluded.encrypted_refresh_token,generation=excluded.generation,state='connected',connected_at=unixepoch()`,
-      ).bind(
-        owner,
-        p.subject,
-        encrypted,
-        crypto.randomUUID(),
-        stateHash,
-        owner,
-        p.subject,
-        sessionHash,
-        p.subject,
-        owner,
-      ),
-      env.DB.prepare(
+        ).bind(
+          owner,
+          p.subject,
+          encrypted,
+          crypto.randomUUID(),
+          stateHash,
+          owner,
+          p.subject,
+          sessionHash,
+          p.subject,
+          owner,
+        ),
+        env.DB.prepare(
+          "DELETE FROM calendar_oauth_transactions WHERE state_hash=?",
+        ).bind(stateHash),
+      ]);
+      if (!result[0].meta.changes)
+        throw new HttpError(
+          401,
+          "Conexão cancelada ou acesso revogado. Reinicie no painel.",
+        );
+    } finally {
+      await env.DB.prepare(
         "DELETE FROM calendar_oauth_transactions WHERE state_hash=?",
-      ).bind(stateHash),
-    ]);
-    if (!result[0].meta.changes)
-      throw new HttpError(
-        401,
-        "Conexão cancelada ou acesso revogado. Reinicie no painel.",
-      );
-  } finally {
-    await env.DB.prepare(
-      "DELETE FROM calendar_oauth_transactions WHERE state_hash=?",
-    )
-      .bind(stateHash)
-      .run();
+      )
+        .bind(stateHash)
+        .run();
+    }
+  } catch (error) {
+    throw new CalendarConnectionFailure(stage, error);
   }
 }
 export async function disconnectCalendar(env: Env, p: Principal) {
