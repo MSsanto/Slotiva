@@ -1,16 +1,11 @@
-## Behavior and evidence
+## Changes
 
-Describe the trigger and resulting behavior. Link source files and the exact CI
-run/commit; distinguish local checks from production validation.
+Describe the problem and resulting behavior.
 
-## Documentation
+## Checks
 
-- [ ] Updated all documents required by docs/DOCUMENTATION.md.
-- [ ] Compared factual claims and examples with code, migrations and test scope.
-- [ ] Recorded limitations and an ADR if the architecture changed.
-- [ ] No credentials or customer data included.
+List the checks run and any remaining limitations.
 
-## Validation and operational impact
+## Deployment
 
-List checks performed, remaining gaps, and any required migration or deployment.
-Opening this PR does not authorize deployment or database changes.
+Note migrations or configuration changes, if applicable.

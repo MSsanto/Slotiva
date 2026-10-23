@@ -1,105 +1,86 @@
-# ADR 011 — Separate Calendar consent and manual availability
+# Google Calendar connection
 
-Status: implemented, external configuration and hosted acceptance pending.
-Date: 2026-10-22. This increment stops at a usable read-only connection and manual
-primary-calendar availability lookup. It does not deliver event creation, attendee
-invitations, external conflict enforcement or an outbox consumer.
+The professional connects Calendar separately from Google sign-in. Current access
+is read-only: the panel shows occupied intervals in the account's primary calendar
+for today through the next 14 days, in Brasília time.
 
-## Boundary and authorization
+Public availability and booking confirmation do not yet use these intervals.
+Event creation, invitations and automatic conflict checks are pending.
 
-Identity sign-in remains openid/email/profile. An authenticated Google professional
-explicitly starts a second consent for openid and calendar.freebusy. Master and demo
-password sessions cannot connect or query professional calendars. No account,
-calendar identifier or tenant ID is accepted from the caller. Queries target only
-the connected professional's primary calendar and return start/end intervals, never
-event names, descriptions, attendees or other calendars. Only dates from today to
-14 days ahead are accepted, using America/Sao_Paulo day boundaries.
+## Implementation
 
-The professional UI explains that Google intervals are for manual review: public
-availability and confirmation still follow D1 occupancy alone. It must not imply
-that external conflicts are enforced or that emails/events have been sent. The next
-increment will implement confirmation/outbox processing with idempotent linked
-events, provider failure handling and cancellation propagation.
+Consent requests `openid` and `calendar.freebusy`, with offline access, PKCE,
+nonce and a ten-minute one-use state bound to the current session and professional.
+The signed returned subject must match the account used in the panel. Master and
+demo sessions cannot connect professional calendars.
 
-## Credentials and lifecycle
+Refresh tokens are encrypted with AES-256-GCM using an independent
+`CALENDAR_TOKEN_KEY`. Associated data binds the token to the professional and
+Google subject. Access tokens stay on the server and are not persisted.
 
-Consent uses offline access, explicit consent/account choice, S256 PKCE, nonce and
-a random ten-minute state. The state hash is bound to professional ID, immutable
-Google subject and current session hash, consumed exactly once before exchange.
-The returned OIDC signature/issuer/audience/expiry/nonce are checked using the same
-cryptographic verifier as sign-in, without invitation binding or authorization
-side effects. The subject must equal the authenticated professional. Missing
-refresh credentials or freebusy scope fail closed; an existing connection survives
-a failed replacement attempt.
+Final storage rechecks the live session and active professional. Disconnect/logout
+during exchange prevents the callback from reconnecting. A connection generation
+also prevents an old refresh failure from invalidating a newer connection.
 
-Only refresh credentials are persisted, encrypted with AES-256-GCM and a random
-96-bit IV. Authenticated associated data binds version, professional and Google
-subject. The independent CALENDAR_TOKEN_KEY is a secret containing 32 random bytes
-in standard base64. Access tokens are ephemeral server values and never sent to the
-browser. Status responses expose only enabled/state/connectedAt/mode. Neither raw
-provider errors nor tokens are returned/logged. OAuth transport uses bounded timeouts
-and the native fetch wrapper, not an unbound dependency-object method.
+Disconnect removes stored credentials and pending transactions. Removing the
+app's grant in Google Account is a separate action. Suspension, removal or a
+changed Google subject also clears credentials. Invalid refresh grants require
+reconnection. Provider errors never become an empty “free” result.
 
-Final connection storage rechecks the consumed transaction, active subject and
-live session in the D1 batch. Disconnecting during exchange or logging out prevents
-an in-flight callback from reconnecting. A per-connection generation protects a new
-grant from stale refresh failures and suppresses in-flight results after disconnect.
-Invalid refresh grants and decryption failures require reconnection. Provider HTTP,
-per-calendar and malformed-response errors never become an empty/free result.
+## Setup
 
-Disconnect deletes local credentials and outstanding consent transactions. It does
-not revoke Google's shared application grant automatically; removing the app's
-permission in Google Account is a distinct user action and can affect other scopes.
-Suspending/removing a professional or changing their bound Google subject also
-clears credentials/transactions. Resuming requires a new consent. Key replacement
-requires all affected professionals to reconnect; retain the key securely rather
-than regenerating it at every deployment. No silent fallback key exists.
+1. Apply migration 0008 to the isolated Preview database using the
+   [release procedure](OPERATIONS.md#preview-migrations-and-publication).
+2. Enable Google Calendar API in the OAuth client's Google Cloud project.
+3. Keep the identity callback and add this exact Calendar callback:
 
-## Setup and acceptance — owner action
+```text
+https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/admin/calendar/callback
+```
 
-1. Verify the same isolated Preview/PREVIEW_DB bindings described in
-   [human validation](HUMAN_VALIDATION.md#editable-services--migration-0006),
-   retaining a private backup. Apply migration 0008 before publishing matching
-   code. This migration is additive and compatible with the previous Worker;
-   the earlier quiet-window requirement concerned the 0006–0007 table rebuilds.
-   Production and the older shared Preview remain untouched.
-2. In the existing test Google Cloud project, enable Google Calendar API. Add the
-   exact authorized redirect URI to the Web OAuth client (keep the identity one):
-   https://feat-product-readiness-slotiva.matheus-sergio.workers.dev/api/admin/calendar/callback
-3. Configure the consent screen/test users for calendar.freebusy. Identity sign-in
-   alone grants no Calendar permission. The professional must personally approve
-   the additional read-only scope. Google testing-mode grants can expire; confirm
-   the account/project policies before a pilot.
-4. With the Preview already using GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and
-   PUBLIC_ORIGIN, create CALENDAR_TOKEN_KEY once through this PowerShell pipeline.
-   It generates the key locally and pipes it directly to Wrangler's stdin without
-   printing it into chat, configuration or Git:
+4. Add the test accounts and read-only Calendar scope to consent configuration.
+5. Create the encryption key once. This PowerShell pipeline sends it directly
+   to Wrangler without printing it:
 
 ```powershell
 node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64'))" | npx wrangler preview secret put CALENDAR_TOKEN_KEY --name feat/product-readiness
 ```
 
-5. Sign in as an active professional, then use /admin > Google Agenda > Conectar
-   Google Agenda. Choose the same Google account. Confirm the panel reports
-   connected. A master must not gain this access by visiting a professional URL.
-6. Place a fictional occupied interval in that account's primary Google calendar.
-   Query its date in Slotiva: verify the interval in Brasília time, then an empty
-   date. No event title/details or customer records should appear in the panel.
-7. Decline consent, select a different account, restart after an expired session,
-   and retry a used callback: no unauthorized credential must be stored. A failed
-   replacement must not overwrite a valid earlier connection.
-8. Disconnect and verify queries stop. Reconnect, then remove the grant in Google
-   Account and query: expect failure/reconnection, never false free availability.
-   Suspend the professional and verify access is revoked; resume and reconnect.
+Keep the key securely. Replacing it requires affected professionals to reconnect.
+Publish matching Preview code and sign in as an active professional.
 
-Real Google consent, account permissions and real availability cannot be established
-by local mocks or CI. No invitation or email should be expected in this increment.
+## Test the connection
 
-Primary references: [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server),
+Use **Google Agenda > Conectar Google Agenda** and choose the same account used
+in the panel. Create a fictional occupied interval in that account's primary
+calendar, query its date and check the Brasília-time result. Also query an empty
+date.
+
+Test denied consent, wrong account, expired session, replayed callback,
+disconnection and revoked Google permission. Failed replacement attempts must
+preserve a previously working connection. Revoked or unavailable access must show
+an error rather than claim the date is free.
+
+The connection is still under Preview validation. Failed callbacks now include a
+fixed `calendar_reason` and show guidance in the panel. Report that code rather
+than provider responses or credentials.
+
+| Code | Check |
+| --- | --- |
+| configuration | Preview OAuth values, origin and encryption key |
+| transaction / session | Fresh consent in a live professional session |
+| consent / scope | Complete consent and grant availability access |
+| exchange_invalid_client | Matching client ID and secret |
+| exchange_invalid_grant | Fresh attempt; verify callback if persistent |
+| exchange_unauthorized_client | OAuth client type and allowed flow |
+| exchange_redirect_uri_mismatch | Exact registered Calendar callback |
+| exchange | Token exchange or provider availability |
+| grant | Required fields in the token response |
+| identity / account | Valid signed identity matching the panel account |
+| encryption / storage / internal | Server configuration, D1 and session state |
+
+Codes identify the failure stage; they do not establish its root cause.
+
+References: [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server),
 [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth),
 [Freebusy query](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query).
-
-
-## Connection troubleshooting
-
-If the panel reports calendar=failed, use its displayed code after publishing this diagnostic increment. configuration requires checking Preview OAuth/origin/key settings; transaction or session requires starting again in a live professional session; consent or scope requires explicit Calendar approval; exchange_invalid_client requires checking the client ID/secret pair; exchange_invalid_grant requires a fresh attempt and verification of the exact Calendar redirect URI if persistent. grant means required token response fields were absent or invalid. identity/account requires a valid signed same-account result. encryption/storage requires operator investigation. Other exchange failures can be retried. Codes locate the failure stage, not a proven root cause. Never paste tokens, raw provider responses or secrets into an issue. No new migration is required. Real consent must be retested after the matching Preview is published.
