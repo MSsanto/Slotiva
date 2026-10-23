@@ -26,6 +26,15 @@ is separate from preserving the current browser session after reload.
 
 ## Product improvements
 
+- Add an optional "Falar com o profissional" WhatsApp contact button.
+  The professional configures and enables the public contact number.
+  Use a neutral prefilled message: "Olá! Vim pelo Slotiva e gostaria de falar
+  sobre um atendimento." Do not include customer or booking data automatically.
+  Make contact available from the public page, including services whose duration
+  or price is to be agreed. Hide the button when no contact is configured.
+  Contact does not confirm, cancel or reschedule a booking; changes remain in
+  Slotiva. Acceptance: each page opens only its professional's configured contact,
+  and disabling the contact removes the button.
 - Propose changes to confirmed appointments while retaining the original time
   until the professional approves the replacement.
 - Date-specific working-hour exceptions.
@@ -46,4 +55,5 @@ invitation delivery and customer recovery. Agree services and cancellation
 policies with the professional. Test a database restore, define support and
 monitoring, and check keyboard/mobile access with fictional bookings.
 
-Payments, clinical notes and WhatsApp are outside the current scope.
+Payments, clinical notes and automated WhatsApp messaging are outside the current
+scope. The optional WhatsApp contact link is included above.
