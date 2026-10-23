@@ -1,5 +1,12 @@
 # Histórico de mudanças
 
+## 2026-10-23 — skill Humanizer para revisão documental
+
+- Adicionado `.agents/skills/humanizer/SKILL.md` (versão 3.1.0, proveniente de `blader/humanizer`) para revisão de prosa em documentação e textos de apresentação.
+- Incluída a licença MIT original em `.agents/skills/humanizer/LICENSE`.
+- Escopo limitado a arquivos de suporte ao agente: sem alterações em código, testes, dados, configuração de produção ou regras de agendamento.
+- Validação: estrutura e conteúdo da skill conferidos no GitHub; testes de aplicação e deploy não executados nesta mudança documental.
+
 Este arquivo começa em 21/10/2026. O histórico anterior permanece nos commits do Git; não é reconstruído nem rotulado como release sem evidência.
 
 ## 2026-10-21 — aplicações da identidade visual
