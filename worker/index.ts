@@ -1,5 +1,6 @@
 import {
   calendarStatus,
+  calendarFailure,
   startCalendar,
   completeCalendar,
   disconnectCalendar,
@@ -216,16 +217,16 @@ async function route(request: Request, env: Env) {
     }
   }
   if (path === "/api/admin/calendar/callback" && method === "GET") {
-    let result = "connected";
     try {
       await completeCalendar(request, env, await requireAdmin(request, env));
-    } catch {
-      result = "failed";
+    } catch (error) {
+      return calendarFailure(error);
     }
     return new Response(null, {
       status: 303,
       headers: {
-        Location: `/admin?calendar=${result}`,
+        Location: "/admin?calendar=connected",
+        "Cache-Control": "no-store",
         "Referrer-Policy": "no-referrer",
       },
     });

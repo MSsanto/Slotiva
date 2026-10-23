@@ -685,6 +685,18 @@ test("Calendar panel shows limited availability, connection failures and explici
   const panel = page.getByRole("region", { name: "Conexão Google Agenda" });
   await expect(panel).toContainText("Google Agenda conectada.");
   await expect(panel.getByRole("alert")).toContainText("mesma conta do painel");
+  await page.goto(
+    "/admin?calendar=failed&calendar_reason=exchange_invalid_client",
+  );
+  await expect(panel.getByRole("alert")).toContainText(
+    "O Google recusou as credenciais",
+  );
+  await expect(panel.getByRole("alert")).toContainText(
+    "Código: exchange_invalid_client",
+  );
+  await page.goto("/admin?calendar=failed&calendar_reason=__proto__");
+  await expect(panel.getByRole("alert")).toContainText("mesma conta do painel");
+  await expect(panel.getByRole("alert")).not.toContainText("__proto__");
   await expect(panel).toContainText("não criam eventos e não enviam convites");
   await panel.getByLabel("Data para consultar no Google").fill("2026-10-26");
   await panel

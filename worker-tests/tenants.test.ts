@@ -1450,6 +1450,8 @@ describe("Calendar HTTP authorization and ownership", () => {
       { headers: authA, redirect: "manual" },
     );
     expect(callback.status).toBe(303);
-    expect(callback.headers.get("Location")).toBe("/admin?calendar=failed");
+    expect(callback.headers.get("Location")).toBe(
+      "/admin?calendar=failed&calendar_reason=configuration",
+    );
   });
 });

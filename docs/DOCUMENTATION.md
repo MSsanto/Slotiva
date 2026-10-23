@@ -229,3 +229,13 @@ production build, lint and formatting. Application revision 8712ff8 also passed
 [documentation CI](https://github.com/MSsanto/Slotiva/actions/runs/39857300737) passed.
 The Calendar browser journey uses API fixtures; real Google consent and permission
 checks remain a separate owner validation.
+
+
+## Calendar diagnostic regression coverage
+
+Added regressions exercise fixed failure redirects, exact provider allowlisting, arbitrary/prototype-key rejection, token-response/scope/identity/account failures, state consumption and non-reflection of secrets. The existing bundled HTTP authorization test now checks the configuration-stage redirect for its intentionally unconfigured Calendar fixture. The browser Calendar journey checks actionable known codes and generic fallback for an unknown/prototype-key code. These tests do not establish the cause of the hosted failure or real Google consent.
+
+Local diagnostic validation: all 106 Worker tests, one frontend test, production
+build, lint and formatting passed. The targeted Calendar browser journey could not
+start because the Playwright Chromium executable is absent; no browser assertions
+ran locally. GitHub CI must establish that browser result.

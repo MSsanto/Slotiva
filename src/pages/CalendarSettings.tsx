@@ -1,6 +1,37 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage, formatDeadline } from "../api";
+const diagnostics: Record<string, string> = {
+  internal: "Ocorreu uma falha interna. Atualize o painel e tente novamente.",
+  configuration:
+    "A configuração da conexão precisa ser revisada pelo responsável.",
+  transaction:
+    "A tentativa expirou ou a sessão mudou. Reinicie a conexão neste painel.",
+  consent:
+    "A autorização não foi concluída no Google. Reinicie e conceda a permissão.",
+  exchange: "A troca de autorização com o Google falhou. Tente novamente.",
+  exchange_invalid_client:
+    "O Google recusou as credenciais do aplicativo. O responsável deve conferir o cliente OAuth e seu segredo no Preview.",
+  exchange_invalid_grant:
+    "O Google recusou o código de autorização. Reinicie a conexão; se persistir, o responsável deve conferir o endereço de retorno.",
+  exchange_unauthorized_client:
+    "O cliente OAuth não está autorizado para esta operação. Solicite revisão da configuração.",
+  exchange_redirect_uri_mismatch:
+    "O endereço de retorno diverge da configuração OAuth. Solicite revisão do callback do Calendar.",
+  grant:
+    "O Google não retornou todas as credenciais necessárias. Reinicie e autorize o acesso solicitado.",
+  scope:
+    "A permissão de disponibilidade não foi concedida. Reinicie e marque a permissão solicitada.",
+  identity:
+    "Não foi possível validar a identidade retornada pelo Google. Reinicie a conexão.",
+  account: "Escolha a mesma conta Google usada no painel profissional.",
+  encryption:
+    "Não foi possível proteger a credencial. O responsável deve revisar a chave do Calendar.",
+  storage:
+    "Não foi possível salvar a conexão ou o acesso foi revogado. Atualize o painel e tente novamente.",
+  session:
+    "Sua sessão não permitiu concluir a conexão. Entre novamente no painel profissional.",
+};
 type Connection = {
   enabled: boolean;
   state: "connected" | "disconnected" | "reconnect_required";
@@ -29,7 +60,10 @@ export default function CalendarSettings() {
       void client.invalidateQueries({ queryKey: ["admin", "calendar"] });
     },
   });
-  const result = new URLSearchParams(window.location.search).get("calendar");
+  const params = new URLSearchParams(window.location.search);
+  const result = params.get("calendar");
+  const reason = params.get("calendar_reason") ?? "";
+  const knownReason = Object.hasOwn(diagnostics, reason);
   return (
     <section className="hours" aria-label="Conexão Google Agenda">
       <h3>Google Agenda</h3>
@@ -44,8 +78,10 @@ export default function CalendarSettings() {
       </p>
       {result === "failed" && (
         <p role="alert">
-          Não foi possível conectar. Confira se escolheu a mesma conta do painel
-          e concedeu a permissão solicitada; depois tente novamente.
+          {knownReason
+            ? diagnostics[reason]
+            : "Não foi possível conectar. Confira se escolheu a mesma conta do painel e concedeu a permissão solicitada; depois tente novamente."}
+          {knownReason && <small> Código: {reason}</small>}
         </p>
       )}
       {status.isPending && <p role="status">Consultando conexão…</p>}

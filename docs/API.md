@@ -246,3 +246,8 @@ Suspension/removal/identity change deletes credentials. Public availability,
 approval and agreed-series creation do not yet consult this external data.
 There is no Calendar event/invite endpoint or outbox delivery in this increment.
 See [ADR 011](CALENDAR_CONNECTION.md) for encryption, races, setup and limitations.
+
+
+## Calendar failure redirect
+
+GET /api/admin/calendar/callback returns 303 to /admin?calendar=connected on success, or /admin?calendar=failed&calendar_reason=<fixed-code> on failure. Both redirects use Cache-Control: no-store and Referrer-Policy: no-referrer. Fixed codes: configuration, transaction, consent, exchange, exchange_invalid_client, exchange_invalid_grant, exchange_unauthorized_client, exchange_redirect_uri_mismatch, grant, scope, identity, account, encryption, storage, session and internal. Provider error mapping accepts only exact allowlisted codes on HTTP 400/401; all other exchange failures use exchange. Raw responses and exception messages are not included. Unknown UI codes use generic guidance and are not rendered. Authentication and callback state protections remain unchanged.
