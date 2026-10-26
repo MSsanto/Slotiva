@@ -5,6 +5,7 @@ import "./App.css";
 export default function App() {
   const match = useMatch("/p/:slug");
   const slug = match?.params.slug;
+  const home = useMatch("/");
   const profile = useQuery({
     queryKey: ["public-profile", slug ?? "demo"],
     queryFn: () =>
@@ -18,9 +19,15 @@ export default function App() {
         Pular para o conteúdo
       </a>
       <header>
-        <NavLink className="brand" to="/">
-          <span className="brand-icon">s</span>slotiva
-          <span className="brand-dot">.</span>
+        <NavLink className="brand" to="/" aria-label="Slotiva — início">
+          <img
+            className="brand-icon"
+            src="/brand/slotiva-symbol.png"
+            alt=""
+            width="40"
+            height="40"
+          />
+          slotiva
         </NavLink>
         <nav aria-label="Principal">
           <NavLink to={slug ? `/p/${slug}` : "/"} end>
@@ -40,6 +47,16 @@ export default function App() {
           <h1>
             {slug && profile.data ? (
               profile.data.headerTitle
+            ) : home ? (
+              <span className="platform-logo-frame">
+                <img
+                  className="platform-logo"
+                  src="/brand/slotiva-logo.jpg"
+                  alt="Slotiva — horários livres que viram encontros."
+                  width="1536"
+                  height="768"
+                />
+              </span>
             ) : (
               <>
                 Um espaço na agenda.

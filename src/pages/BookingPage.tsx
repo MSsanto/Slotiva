@@ -666,7 +666,9 @@ export default function BookingPage() {
                 {date && time
                   ? `${formatDate(date)} · ${time}`
                   : "Seu próximo passo começa aqui."}
-                <small>Use dados fictícios neste projeto de portfólio.</small>
+                {!slug && (
+                  <small>Use dados fictícios nesta demonstração.</small>
+                )}
               </p>
               <button
                 className="primary"
