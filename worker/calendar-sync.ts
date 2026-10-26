@@ -1,4 +1,4 @@
-import { calendarAccess } from "./calendar";
+import { calendarAccess, busyResponse } from "./calendar";
 import { digest } from "./security";
 import { HttpError, type BookingRow, type Env } from "./types";
 
@@ -316,4 +316,83 @@ export async function calendarSyncStatus(env: Env, owner: string) {
     .bind(owner)
     .all();
   return rows.results;
+}
+
+export async function googleBusyIntervals(
+  env: Env,
+  owner: string,
+  date: string,
+  fetcher: Transport = fetch,
+) {
+  const c = await env.DB.prepare(
+    "SELECT c.subject,c.generation,c.encrypted_refresh_token,c.state FROM calendar_connections c JOIN professionals p ON p.id=c.professional_id AND p.google_subject=c.subject AND p.status='active' WHERE c.professional_id=?",
+  )
+    .bind(owner)
+    .first<Connection & { state: string }>();
+  if (!c) return [];
+  if (c.state !== "connected")
+    throw new HttpError(
+      503,
+      "A agenda externa precisa ser reconectada. Consulte o profissional.",
+    );
+  const token = await calendarAccess(env, owner, c, fetcher);
+  const next = new Date(`${date}T12:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const r = await google(
+    fetcher,
+    token.access_token,
+    "https://www.googleapis.com/calendar/v3/freeBusy",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        timeMin: `${date}T00:00:00-03:00`,
+        timeMax: `${next.toISOString().slice(0, 10)}T00:00:00-03:00`,
+        items: [{ id: "primary" }],
+      }),
+    },
+  );
+  if (!r.ok)
+    throw new HttpError(
+      503,
+      "Não foi possível consultar a agenda externa. Tente novamente.",
+    );
+  const parsed = busyResponse.safeParse(await r.json());
+  if (!parsed.success)
+    throw new HttpError(503, "Não foi possível consultar a agenda externa.");
+  const calendars = Object.values(parsed.data.calendars);
+  if (
+    calendars.length !== 1 ||
+    calendars[0].errors?.length ||
+    calendars[0].busy.some((b) => Date.parse(b.start) >= Date.parse(b.end))
+  )
+    throw new HttpError(503, "Não foi possível consultar a agenda externa.");
+  const current = await env.DB.prepare(
+    "SELECT 1 FROM calendar_connections WHERE professional_id=? AND generation=? AND state='connected'",
+  )
+    .bind(owner, c.generation)
+    .first();
+  if (!current)
+    throw new HttpError(
+      503,
+      "A conexão mudou. Consulte os horários novamente.",
+    );
+  return calendars[0].busy;
+}
+export async function filterGoogleSlots(
+  env: Env,
+  owner: string,
+  date: string,
+  slots: string[],
+  duration: number,
+  fetcher: Transport = fetch,
+) {
+  if (!slots.length) return slots;
+  const intervals = await googleBusyIntervals(env, owner, date, fetcher);
+  return slots.filter((time) => {
+    const start = Date.parse(`${date}T${time}:00-03:00`),
+      end = start + (duration + 15) * 60000;
+    return !intervals.some(
+      (b) => Date.parse(b.start) < end && Date.parse(b.end) > start,
+    );
+  });
 }

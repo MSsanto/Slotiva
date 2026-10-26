@@ -42,6 +42,70 @@ export default function BookingPage() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [confirmed, setConfirmed] = useState<Receipt | null>(null);
+  const customerHeaders = confirmed?.cancelToken
+    ? { "X-Cancel-Token": confirmed.cancelToken }
+    : undefined;
+  const hydrated = useRef(false);
+  const [accessError, setAccessError] = useState("");
+  const stored = useQuery({
+    queryKey: ["customer-bookings", slug ?? "demo"],
+    queryFn: () =>
+      api<Receipt[]>(
+        `/customer/bookings?slug=${encodeURIComponent(slug ?? "demo")}`,
+      ),
+    retry: false,
+  });
+  useEffect(() => {
+    if (stored.isSuccess && !hydrated.current) {
+      hydrated.current = true;
+      setConfirmed(
+        stored.data.find(
+          (b) => b.status === "pending_approval" || b.status === "confirmed",
+        ) ?? null,
+      );
+    }
+  }, [stored.isSuccess, stored.data]);
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.hash.slice(1)).get(
+      "access",
+    );
+    if (!token) return;
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + window.location.search,
+    );
+    hydrated.current = true;
+    void api<{ bookingId: string }>("/customer/access", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+      .then(async (redeemed) => {
+        const rows = await api<Receipt[]>(
+          `/customer/bookings?slug=${encodeURIComponent(slug ?? "demo")}`,
+        );
+        queryClient.setQueryData(["customer-bookings", slug ?? "demo"], rows);
+        setConfirmed(rows.find((b) => b.id === redeemed.bookingId) ?? null);
+      })
+      .catch((error) => setAccessError(errorMessage(error)));
+  }, [slug, queryClient]);
+  const accessLink = useMutation({
+    mutationFn: () =>
+      api<{ url: string; expiresIn: number }>(
+        `/bookings/${confirmed!.id}/access`,
+        { method: "POST", headers: customerHeaders },
+      ),
+  });
+  const forget = useMutation({
+    mutationFn: () => api("/customer/session", { method: "DELETE" }),
+    onSuccess: () => {
+      setConfirmed(null);
+      setRescheduling(false);
+      accessLink.reset();
+      queryClient.removeQueries({ queryKey: ["receipt"] });
+      queryClient.setQueryData(["customer-bookings", slug ?? "demo"], []);
+    },
+  });
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (confirmed) heading.current?.focus();
@@ -83,9 +147,7 @@ export default function BookingPage() {
               slug,
               `availability?date=${date}&serviceId=${encodeURIComponent(selectedId)}`,
             ),
-        rescheduling && confirmed
-          ? { headers: { "X-Cancel-Token": confirmed.cancelToken } }
-          : {},
+        rescheduling && confirmed ? { headers: customerHeaders } : {},
       ),
     enabled:
       !!date && ((!!service && service.duration !== null) || rescheduling),
@@ -94,7 +156,7 @@ export default function BookingPage() {
     queryKey: ["receipt", confirmed?.id],
     queryFn: () =>
       api<Booking>(`/bookings/${confirmed!.id}`, {
-        headers: { "X-Cancel-Token": confirmed!.cancelToken },
+        headers: customerHeaders,
       }),
     enabled: !!confirmed,
     refetchInterval: 15000,
@@ -117,7 +179,13 @@ export default function BookingPage() {
       }),
     onSuccess: (receipt) => {
       queryClient.removeQueries({ queryKey: ["receipt", receipt.id] });
+      hydrated.current = true;
+      accessLink.reset();
       setConfirmed(receipt);
+      queryClient.setQueryData<Receipt[]>(
+        ["customer-bookings", slug ?? "demo"],
+        (old) => [receipt, ...(old ?? []).filter((b) => b.id !== receipt.id)],
+      );
       setNotice("");
       reset();
       void queryClient.invalidateQueries({ queryKey: ["availability"] });
@@ -132,13 +200,16 @@ export default function BookingPage() {
     mutationFn: () =>
       api(`/bookings/${confirmed!.id}`, {
         method: "DELETE",
-        headers: { "X-Cancel-Token": confirmed!.cancelToken },
+        headers: customerHeaders,
       }),
     onSuccess: () => {
       setConfirmed(null);
       setRescheduling(false);
       setTime("");
       setNotice("Reserva cancelada.");
+      void queryClient.invalidateQueries({
+        queryKey: ["customer-bookings", slug ?? "demo"],
+      });
       void queryClient.invalidateQueries({ queryKey: ["availability"] });
     },
   });
@@ -146,7 +217,7 @@ export default function BookingPage() {
     mutationFn: () =>
       api<Receipt>(`/bookings/${confirmed!.id}`, {
         method: "PUT",
-        headers: { "X-Cancel-Token": confirmed!.cancelToken },
+        headers: customerHeaders,
         body: JSON.stringify({ date, time }),
       }),
     onSuccess: (receipt) => {
@@ -168,7 +239,12 @@ export default function BookingPage() {
         <p>Confira o endereço com o profissional.</p>
       </section>
     );
-  if (profile.isPending || services.isPending || calendar.isPending)
+  if (
+    profile.isPending ||
+    services.isPending ||
+    calendar.isPending ||
+    stored.isPending
+  )
     return <p role="status">Carregando serviços e calendário…</p>;
   if (services.isError || calendar.isError)
     return (
@@ -298,12 +374,39 @@ export default function BookingPage() {
             ) &&
               ` · ${servicePriceLabel(confirmed.servicePriceMode, confirmed.servicePrice)}`}
           </p>
-          <small>Horário de Brasília · Nenhum e-mail foi enviado.</small>
+          <small>
+            Horário de Brasília · A confirmação depende do profissional.
+          </small>
         </div>
         <p className="hint">
-          Mantenha esta página aberta para acompanhar sua solicitação.
-          Recuperação de acesso por e-mail ainda não está disponível.
+          Você pode recarregar esta página: o acesso fica salvo neste navegador
+          por até 30 dias. Em um computador compartilhado, encerre o acesso ao
+          terminar.
         </p>
+        <button
+          disabled={accessLink.isPending}
+          onClick={() => accessLink.mutate()}
+        >
+          Gerar link para outro dispositivo
+        </button>
+        {accessLink.data && (
+          <label>
+            Link de acesso — uso único, válido por 30 minutos. Guarde em local
+            privado.
+            <input
+              readOnly
+              value={accessLink.data.url}
+              onFocus={(e) => e.target.select()}
+            />
+          </label>
+        )}
+        {accessLink.isError && (
+          <p role="alert">{errorMessage(accessLink.error)}</p>
+        )}
+        <button disabled={forget.isPending} onClick={() => forget.mutate()}>
+          Encerrar acesso neste navegador
+        </button>
+        {forget.isError && <p role="alert">{errorMessage(forget.error)}</p>}
         {rescheduling && current?.status === "pending_approval" && (
           <div className="reschedule">
             {schedule()}
@@ -369,6 +472,35 @@ export default function BookingPage() {
   return (
     <>
       {notice && <p role="status">{notice}</p>}
+      {accessError && <p role="alert">{accessError}</p>}
+      {stored.isError && (
+        <p role="alert">
+          Não foi possível recuperar reservas deste navegador.{" "}
+          <button onClick={() => void stored.refetch()}>
+            Tentar novamente
+          </button>
+        </p>
+      )}
+      {!!stored.data?.length && (
+        <section aria-label="Reservas deste navegador">
+          <h2>Suas reservas</h2>
+          {stored.data.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => {
+                setConfirmed(b);
+                setRescheduling(false);
+                accessLink.reset();
+              }}
+            >
+              {formatDate(b.date)} · {b.time} — {statusLabel(b.status)}
+            </button>
+          ))}
+          <button disabled={forget.isPending} onClick={() => forget.mutate()}>
+            Encerrar acesso neste navegador
+          </button>
+        </section>
+      )}
       <div className="workspace">
         <aside className="profile">
           <div className="avatar">

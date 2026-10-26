@@ -89,7 +89,9 @@ HttpOnly, SameSite cookies; hosted cookies are Secure. Mutations check Origin.
 Password login is available only in local/demo mode.
 
 Customers use a random booking capability sent in `X-Cancel-Token`. Only its
-hash is stored. The frontend currently keeps it in memory, so reload loses access.
+hash is stored. New public bookings also grant a 30-day, booking-scoped browser
+session through an HttpOnly cookie. Recovery links are hashed, single-use and
+expire after 30 minutes; redemption grants access only to the named reservation.
 Email or phone alone must not be treated as proof of ownership.
 
 ## Integrations

@@ -2,11 +2,9 @@
 
 ## Demo readiness — first
 
-- Preserve customer access to the booking after a page reload.
-  Prefer a server-side booking-scoped session with an HttpOnly cookie, expiry
-  and revocation; review the design before implementation.
-  Acceptance: create a booking, reload, read its current status and cancel it;
-  an expired or foreign session must not grant access to another booking.
+- Customer reload continuity and one-use cross-device links are implemented;
+  validate the 30-day cookie and 30-minute link in Preview. Revocation, expiry and
+  booking/tenant isolation have automated coverage.
 - Prepare an isolated demo with fictional professionals, services and working
   hours, plus a repeatable reset. Keep demo data separate from real appointments.
 - Verify the complete request → professional approval → customer status →
@@ -17,8 +15,8 @@
 - Event creation, invitations and cancellation were accepted with a real Google
   account in Preview. Validate revocation/reconnect, outage recovery and conflict
   handling against Google; synthetic-provider tests already cover these cases.
-- Reflect external busy intervals in public slot selection; confirmation already
-  checks Google when write-enabled Calendar is connected.
+- Public slot selection now excludes Google busy intervals; validate live provider
+  errors and reconnect behavior in Preview.
 - Reconcile edits made directly in Google; reservations currently change in Slotiva.
 - Deliver transactional emails and recover customer access on a new browser/device.
 
@@ -30,7 +28,8 @@ is separate from preserving the current browser session after reload.
 
 - Propose changes to confirmed appointments while retaining the original time
   until the professional approves the replacement.
-- Date-specific working-hour exceptions.
+- Date-specific working-hour exceptions are implemented; validate closures and
+  additional opening days in Preview.
 - Editing recurring agreements.
 - Client records with verified contacts and explicit handling of shared addresses.
 - Retention, export and deletion workflows.

@@ -46,6 +46,10 @@ test("request, edit, approve and cancel with a live customer receipt", async ({
   await expect(
     page.getByRole("heading", { name: "Acompanhe sua solicitação." }),
   ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Acompanhe sua solicitação." }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Alterar solicitação", exact: true })
     .click();

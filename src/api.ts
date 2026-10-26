@@ -28,7 +28,7 @@ export type Booking = {
   approvalExpiresAt: number | null;
   version: number;
 };
-export type Receipt = Booking & { cancelToken: string };
+export type Receipt = Booking & { cancelToken?: string };
 export type Hours = { weekday: number; opens: string; closes: string };
 export class ApiError extends Error {
   status: number;

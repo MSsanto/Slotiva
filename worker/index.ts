@@ -1,5 +1,16 @@
+import { dateHours, saveDateHours, dateHoursSchema } from "./date-hours";
+import {
+  customerBooking as customer,
+  customerBookings,
+  prepareGrant,
+  customerCookie,
+  accessCookie,
+  createCustomerLink,
+  redeemCustomerLink,
+} from "./customer-access";
 import {
   assertGoogleFree,
+  filterGoogleSlots,
   processCalendarJobs,
   calendarSyncStatus,
 } from "./calendar-sync";
@@ -84,23 +95,6 @@ async function read<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
   }
 }
 const bookingId = z.uuid();
-function token(request: Request) {
-  const value = request.headers.get("X-Cancel-Token") || "";
-  if (!/^[a-f0-9]{64}$/.test(value))
-    throw new HttpError(404, "Reserva não encontrada.");
-  return value;
-}
-async function customer(request: Request, env: Env, id: string, active = true) {
-  const hash = await digest(token(request));
-  const row = await env.DB.prepare(
-    "SELECT b.* FROM bookings b JOIN professionals p ON p.id=b.professional_id AND p.status='active' WHERE b.id=? AND b.cancel_hash=?",
-  )
-    .bind(id, hash)
-    .first<BookingRow>();
-  if (!row || (active && row.cancelled))
-    throw new HttpError(404, "Reserva não encontrada.");
-  return row;
-}
 async function getHours(env: Env, professionalId: string) {
   const rows = await env.DB.prepare(
     "SELECT * FROM weekly_hours WHERE professional_id=? AND enabled=1 ORDER BY weekday",
@@ -120,11 +114,20 @@ async function available(
   durationMinutes: number,
 ) {
   const { weekday } = window(date, "09:00", durationMinutes);
-  const hours = await env.DB.prepare(
-    "SELECT * FROM weekly_hours WHERE professional_id=? AND weekday=? AND enabled=1",
+  const exception = await env.DB.prepare(
+    "SELECT opens,closes,enabled FROM date_hours WHERE professional_id=? AND date=?",
   )
-    .bind(professionalId, weekday)
+    .bind(professionalId, date)
     .first<HoursRow>();
+  const hours = exception
+    ? exception.enabled
+      ? exception
+      : null
+    : await env.DB.prepare(
+        "SELECT * FROM weekly_hours WHERE professional_id=? AND weekday=? AND enabled=1",
+      )
+        .bind(professionalId, weekday)
+        .first<HoursRow>();
   if (!hours) return [];
   const occupied = await env.DB.prepare(
     "SELECT minute FROM occupied_slots WHERE professional_id=? AND date=?",
@@ -142,7 +145,7 @@ async function available(
     if (free && startsAt >= Math.floor(Date.now() / 1000) + 48 * 3600)
       result.push(clock(start));
   }
-  return result;
+  return filterGoogleSlots(env, professionalId, date, result, durationMinutes);
 }
 async function route(request: Request, env: Env) {
   const url = new URL(request.url),
@@ -186,6 +189,45 @@ async function route(request: Request, env: Env) {
     });
   if (!env.DB)
     throw new HttpError(503, "Banco da agenda ainda não configurado.");
+  if (path.startsWith("/api/customer/")) {
+    if (method !== "GET") origin(request);
+    if (path === "/api/customer/bookings" && method === "GET")
+      return json(
+        (
+          await customerBookings(
+            request,
+            env,
+            url.searchParams.get("slug") ?? "demo",
+          )
+        ).map(output),
+      );
+    if (path === "/api/customer/session" && method === "DELETE") {
+      await env.DB.prepare("DELETE FROM customer_grants WHERE session_hash=?")
+        .bind(await digest(customerCookie(request)))
+        .run();
+      return new Response(null, {
+        status: 204,
+        headers: { "Set-Cookie": accessCookie(env, "", 0) },
+      });
+    }
+    if (path === "/api/customer/access" && method === "POST") {
+      const data = await read(
+        request,
+        z.object({ token: z.string().max(64) }).strict(),
+      );
+      const redeemed = await redeemCustomerLink(request, env, data.token);
+      const response = json({ bookingId: redeemed.bookingId });
+      response.headers.set("Set-Cookie", redeemed.cookie);
+      return response;
+    }
+  }
+  const accessLink = path.match(/^\/api\/bookings\/([^/]+)\/access$/);
+  if (accessLink && method === "POST") {
+    origin(request);
+    if (!bookingId.safeParse(accessLink[1]).success)
+      throw new HttpError(404, "Reserva não encontrada.");
+    return json(await createCustomerLink(request, env, accessLink[1]));
+  }
   if (path === "/api/services" && method === "GET")
     return json(await listServices(env, professionalId));
   if (path === "/api/health" && method === "GET") {
@@ -193,6 +235,8 @@ async function route(request: Request, env: Env) {
       "SELECT can_write FROM calendar_connections LIMIT 1",
     ).first();
     await env.DB.prepare("SELECT 1 FROM calendar_jobs LIMIT 1").first();
+    await env.DB.prepare("SELECT 1 FROM customer_grants LIMIT 1").first();
+    await env.DB.prepare("SELECT 1 FROM date_hours LIMIT 1").first();
     await env.DB.prepare(
       "SELECT 1 FROM calendar_oauth_transactions LIMIT 1",
     ).first();
@@ -275,11 +319,12 @@ async function route(request: Request, env: Env) {
       id = crypto.randomUUID(),
       secret = randomToken();
     requireNotice(w.startsAt);
-    const row = await env.DB.prepare(
-      `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,professional_id,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version,approval_expires_at)
+    const grant = await prepareGrant(request, env, id);
+    const result = await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO bookings(id,service_id,date,weekday,starts_at,start_min,end_min,occupied_until,name,email,cancel_hash,professional_id,service_name,service_description,service_duration,service_price_mode,service_price_cents,service_version,approval_expires_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,unixepoch()+86400) RETURNING *`,
-    )
-      .bind(
+      ).bind(
         id,
         data.serviceId,
         data.date,
@@ -298,9 +343,13 @@ async function route(request: Request, env: Env) {
         service.price_mode,
         service.price_cents,
         service.version,
-      )
-      .first<BookingRow>();
-    return json({ ...output(row!), cancelToken: secret }, 201);
+      ),
+      grant.statement,
+    ]);
+    const row = result[0].results[0] as unknown as BookingRow;
+    const response = json({ ...output(row), cancelToken: secret }, 201);
+    response.headers.set("Set-Cookie", grant.cookie);
+    return response;
   }
   const moveAvailability = path.match(
     /^\/api\/bookings\/([^/]+)\/availability$/,
@@ -328,6 +377,8 @@ async function route(request: Request, env: Env) {
   if (match && (method === "GET" || method === "DELETE" || method === "PUT")) {
     const id = bookingId.safeParse(match[1]);
     if (!id.success) throw new HttpError(404, "Reserva não encontrada.");
+    if (method !== "GET" && !request.headers.has("X-Cancel-Token"))
+      origin(request);
     const row = await customer(request, env, id.data, method !== "GET");
     professionalId = row.professional_id;
     if (method === "GET") return json(output(row));
@@ -369,7 +420,7 @@ async function route(request: Request, env: Env) {
         409,
         "A solicitação mudou ou expirou. Atualize a página.",
       );
-    return json({ ...output(moved), cancelToken: token(request) });
+    return json(output(moved));
   }
   if (path.startsWith("/api/master/")) {
     if (method !== "GET") origin(request);
@@ -599,6 +650,33 @@ async function route(request: Request, env: Env) {
         .all<BookingRow>();
       return json(rows.results.map(output));
     }
+    if (path === "/api/admin/date-hours" && method === "GET")
+      return json(await dateHours(env, professionalId));
+    if (path === "/api/admin/date-hours" && method === "PUT")
+      return json(
+        await saveDateHours(
+          env,
+          professionalId,
+          await read(request, dateHoursSchema),
+        ),
+      );
+    if (path === "/api/admin/date-hours" && method === "DELETE") {
+      const data = await read(
+        request,
+        moveSchema
+          .pick({ date: true })
+          .extend({ version: z.number().int().positive() })
+          .strict(),
+      );
+      const result = await env.DB.prepare(
+        "DELETE FROM date_hours WHERE professional_id=? AND date=? AND version=?",
+      )
+        .bind(professionalId, data.date, data.version)
+        .run();
+      if (!result.meta.changes)
+        throw new HttpError(409, "A exceção mudou. Atualize a lista.");
+      return noContent();
+    }
     if (path === "/api/admin/hours" && method === "GET")
       return json(await getHours(env, professionalId));
     if (path === "/api/admin/hours" && method === "PUT") {
@@ -672,6 +750,14 @@ async function route(request: Request, env: Env) {
 export default {
   async scheduled(_controller: ScheduledController, env: Env) {
     await expirePending(env);
+    await env.DB.batch([
+      env.DB.prepare(
+        "DELETE FROM customer_grants WHERE expires_at<=unixepoch()",
+      ),
+      env.DB.prepare(
+        "DELETE FROM customer_links WHERE expires_at<=unixepoch()",
+      ),
+    ]);
     await processCalendarJobs(env);
   },
   async fetch(

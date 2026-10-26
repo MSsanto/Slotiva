@@ -160,8 +160,8 @@ export default function CalendarSettings() {
                 <p>
                   Sincronização habilitada. Reservas futuras já confirmadas
                   também serão enviadas. A confirmação consulta conflitos no
-                  Google; a lista pública de horários ainda mostra a
-                  disponibilidade do Slotiva.
+                  Google. Os horários ocupados também são retirados da página
+                  pública de agendamento.
                 </p>
                 <button disabled={sync.isPending} onClick={() => sync.mutate()}>
                   {sync.isPending ? "Sincronizando…" : "Sincronizar agora"}

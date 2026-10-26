@@ -23,10 +23,9 @@ Built with React, TypeScript, Vite, Cloudflare Workers and D1.
 Calendar synchronization creates private events for confirmed bookings, requests
 Google invitations, and propagates Slotiva cancellations. Explicit write consent
 is required, including for previously connected accounts. External conflicts are
-checked before approval and professional series creation; public availability
-still uses Slotiva's schedule. Delivery failures appear separately from booking
-status. Google event creation, invitations and cancellation were validated in Preview. Customer self-service
-currently depends on a token held in browser memory and is lost on reload.
+checked before approval and professional series creation; public availability also excludes busy Google intervals. Delivery failures appear separately from booking
+status. Google event creation, invitations and cancellation were validated in Preview. Customer access survives reload through a booking-scoped HttpOnly browser cookie.
+A short-lived, one-use link can transfer access to another device.
 See the [roadmap](docs/ROADMAP.md).
 
 ## Local development
