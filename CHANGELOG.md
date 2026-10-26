@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixes Calendar transport failing before network I/O: workerd requires manual
+  redirects instead of the unsupported error mode. Unexpected redirects are rejected.
+- Distinguishes provider request/scope errors, outages and HTTP status in safe
+  Calendar diagnostics, with native workerd regression coverage.
+
 - Adds deleted-profile listing and restoration for the master. Original identity
   and history are retained; cancelled bookings and revoked sessions stay unchanged.
 - Adds migration 0010 for restoration lifecycle guards and audit events.

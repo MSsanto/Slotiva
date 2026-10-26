@@ -10,6 +10,16 @@ const diagnostics: Record<string, string> = {
   consent:
     "A autorização não foi concluída no Google. Reinicie e conceda a permissão.",
   exchange: "A troca de autorização com o Google falhou. Tente novamente.",
+  exchange_redirect_blocked:
+    "A conexão foi interrompida porque o serviço tentou redirecionar a troca de credenciais. O responsável deve revisar a integração.",
+  exchange_unavailable:
+    "Não foi possível concluir a comunicação com o Google. Aguarde e reinicie a conexão.",
+  exchange_invalid_request:
+    "O Google recusou o formato da solicitação de autorização. O responsável deve revisar a integração do Calendar.",
+  exchange_invalid_scope:
+    "O Google recusou o escopo solicitado. O responsável deve revisar a permissão de disponibilidade do Calendar.",
+  exchange_unsupported_grant_type:
+    "O Google recusou o tipo de troca de autorização. O responsável deve revisar a integração OAuth.",
   exchange_invalid_client:
     "O Google recusou as credenciais do aplicativo. O responsável deve conferir o cliente OAuth e seu segredo no Preview.",
   exchange_invalid_grant:
@@ -64,6 +74,11 @@ export default function CalendarSettings() {
   const result = params.get("calendar");
   const reason = params.get("calendar_reason") ?? "";
   const knownReason = Object.hasOwn(diagnostics, reason);
+  const http = params.get("calendar_http") ?? "";
+  const showHttp =
+    knownReason &&
+    reason.startsWith("exchange") &&
+    /^[345][0-9]{2}$/.test(http);
   return (
     <section className="hours" aria-label="Conexão Google Agenda">
       <h3>Google Agenda</h3>
@@ -81,7 +96,13 @@ export default function CalendarSettings() {
           {knownReason
             ? diagnostics[reason]
             : "Não foi possível conectar. Confira se escolheu a mesma conta do painel e concedeu a permissão solicitada; depois tente novamente."}
-          {knownReason && <small> Código: {reason}</small>}
+          {knownReason && (
+            <small>
+              {" "}
+              Código: {reason}
+              {showHttp ? ` · HTTP ${http}` : ""}
+            </small>
+          )}
         </p>
       )}
       {status.isPending && <p role="status">Consultando conexão…</p>}

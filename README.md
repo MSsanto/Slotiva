@@ -19,7 +19,8 @@ Built with React, TypeScript, Vite, Cloudflare Workers and D1.
 - Conflict protection in the database and cancellation history.
 - Separate Google Calendar consent and manual lookup of occupied intervals.
 
-Calendar connection is still being validated in Preview. External conflicts are
+Calendar connection is still being validated in Preview. Token transport now uses
+workerd-compatible manual redirects and reports safe exchange diagnostics. External conflicts are
 not checked automatically; event creation, invitations and email delivery are
 pending. Customer self-service currently depends on a token held in browser memory
 and is lost on reload. See the [roadmap](docs/ROADMAP.md).

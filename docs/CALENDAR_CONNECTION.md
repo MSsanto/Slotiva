@@ -74,12 +74,24 @@ than provider responses or credentials.
 | exchange_invalid_grant | Fresh attempt; verify callback if persistent |
 | exchange_unauthorized_client | OAuth client type and allowed flow |
 | exchange_redirect_uri_mismatch | Exact registered Calendar callback |
-| exchange | Token exchange or provider availability |
+| exchange_invalid_request | Token request parameters |
+| exchange_invalid_scope | Configured Calendar availability scope |
+| exchange_unsupported_grant_type | OAuth grant type |
+| exchange_unavailable | Network, timeout, rate limit or provider outage |
+| exchange_redirect_blocked | Unexpected provider redirect, not followed |
+| exchange | Unclassified provider refusal; inspect displayed HTTP status |
 | grant | Required fields in the token response |
 | identity / account | Valid signed identity matching the panel account |
 | encryption / storage / internal | Server configuration, D1 and session state |
 
-Codes identify the failure stage; they do not establish its root cause.
+Codes identify the failure stage; they do not establish its root cause. The panel
+also shows the provider HTTP status for failed exchanges. Raw response bodies,
+descriptions, authorization codes and credentials are not displayed.
+
+Calendar requests use manual redirects and reject non-success responses.
+workerd does not support fetch redirect mode "error"; that option caused the
+previous callback to fail before outbound I/O. The native-runtime regression
+checks token parameters, PKCE, one-use state and blocked redirects.
 
 References: [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server),
 [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth),

@@ -314,6 +314,7 @@ it("returns only primary-calendar intervals and sends no event details or attend
   const fetcher = vi
     .fn<typeof fetch>()
     .mockImplementation(async (url, init) => {
+      expect(init?.redirect).toBe("manual");
       if (String(url).includes("oauth2"))
         return Response.json({
           access_token: "fixture-access",
@@ -426,6 +427,9 @@ it("rejects invalid dates and credentials encrypted under a different key", asyn
 
 it("reports allowlisted exchange failures without leaking provider text and consumes state", async () => {
   for (const [provider, expected] of [
+    ["invalid_request", "exchange_invalid_request"],
+    ["invalid_scope", "exchange_invalid_scope"],
+    ["unsupported_grant_type", "exchange_unsupported_grant_type"],
     ["invalid_client", "exchange_invalid_client"],
     ["invalid_grant", "exchange_invalid_grant"],
     ["unauthorized_client", "exchange_unauthorized_client"],
@@ -454,7 +458,7 @@ it("reports allowlisted exchange failures without leaking provider text and cons
     }
     const response = calendarFailure(failure);
     expect(response.headers.get("Location")).toBe(
-      `/admin?calendar=failed&calendar_reason=${expected}`,
+      `/admin?calendar=failed&calendar_reason=${expected}&calendar_http=400`,
     );
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
@@ -514,4 +518,48 @@ it("does not reflect arbitrary failures or query text", () => {
   expect(calendarFailure(new Error(secret)).headers.get("Location")).toBe(
     "/admin?calendar=failed&calendar_reason=internal",
   );
+});
+
+it("separates network and provider outages from unclassified HTTP refusals without leaking bodies", async () => {
+  for (const [status, stage] of [
+    [408, "exchange_unavailable"],
+    [429, "exchange_unavailable"],
+    [500, "exchange_unavailable"],
+    [503, "exchange_unavailable"],
+    [403, "exchange"],
+    [400, "exchange"],
+  ] as const) {
+    const auth = await begin();
+    let failure: unknown;
+    try {
+      await completeCalendar(callback(auth), env(), a, {
+        keys,
+        fetch: async () => new Response(secret, { status }),
+      });
+    } catch (error) {
+      failure = error;
+    }
+    const response = calendarFailure(failure);
+    expect(response.headers.get("Location")).toBe(
+      `/admin?calendar=failed&calendar_reason=${stage}&calendar_http=${status}`,
+    );
+    expect(JSON.stringify([...response.headers])).not.toContain(secret);
+    expect((await calendarStatus(env(), a)).state).toBe("disconnected");
+  }
+  const auth = await begin();
+  let failure: unknown;
+  try {
+    await completeCalendar(callback(auth), env(), a, {
+      keys,
+      fetch: async () => {
+        throw new Error(secret);
+      },
+    });
+  } catch (error) {
+    failure = error;
+  }
+  expect(calendarFailure(failure).headers.get("Location")).toBe(
+    "/admin?calendar=failed&calendar_reason=exchange_unavailable",
+  );
+  expect((await calendarStatus(env(), a)).state).toBe("disconnected");
 });

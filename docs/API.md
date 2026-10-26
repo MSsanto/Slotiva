@@ -294,3 +294,10 @@ Calendar. A restored audit event records the master actor and new version.
 Identifiers remain unique; this restores the original account rather than freeing
 its identifiers for a different person. Physical deletion remains blocked.
 Migration 0010 replaces the lifecycle guard and audit triggers.
+
+Calendar exchange diagnostics also include exchange_invalid_request,
+exchange_invalid_scope, exchange_unsupported_grant_type, exchange_unavailable
+and exchange_redirect_blocked. Failed HTTP exchanges append calendar_http
+(300–599); arbitrary query values are not displayed. Network failures have no
+provider HTTP status. Redirects are returned manually and rejected rather than
+followed, including refresh and free/busy requests.

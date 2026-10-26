@@ -697,6 +697,22 @@ test("Calendar panel shows limited availability, connection failures and explici
   await expect(panel.getByRole("alert")).toContainText(
     "Código: exchange_invalid_client",
   );
+  await page.goto(
+    "/admin?calendar=failed&calendar_reason=exchange_invalid_request&calendar_http=400",
+  );
+  await expect(panel.getByRole("alert")).toContainText(
+    "O Google recusou o formato",
+  );
+  await expect(panel.getByRole("alert")).toContainText("HTTP 400");
+  await page.goto(
+    "/admin?calendar=failed&calendar_reason=exchange_unavailable&calendar_http=private-injected-value",
+  );
+  await expect(panel.getByRole("alert")).toContainText(
+    "comunicação com o Google",
+  );
+  await expect(panel.getByRole("alert")).not.toContainText(
+    "private-injected-value",
+  );
   await page.goto("/admin?calendar=failed&calendar_reason=__proto__");
   await expect(panel.getByRole("alert")).toContainText("mesma conta do painel");
   await expect(panel.getByRole("alert")).not.toContainText("__proto__");

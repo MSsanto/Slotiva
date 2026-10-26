@@ -177,6 +177,11 @@ type CalendarStage =
   | "transaction"
   | "consent"
   | "exchange"
+  | "exchange_redirect_blocked"
+  | "exchange_unavailable"
+  | "exchange_invalid_request"
+  | "exchange_invalid_scope"
+  | "exchange_unsupported_grant_type"
   | "exchange_invalid_client"
   | "exchange_invalid_grant"
   | "exchange_unauthorized_client"
@@ -190,12 +195,14 @@ type CalendarStage =
 
 class CalendarConnectionFailure extends HttpError {
   readonly stage: CalendarStage;
-  constructor(stage: CalendarStage, error: unknown) {
+  readonly providerStatus: number | undefined;
+  constructor(stage: CalendarStage, error: unknown, providerStatus?: number) {
     super(
       error instanceof HttpError ? error.status : 500,
       "Não foi possível conectar Google Agenda.",
     );
     this.stage = stage;
+    this.providerStatus = providerStatus;
   }
 }
 export function calendarFailure(error: unknown) {
@@ -206,10 +213,21 @@ export function calendarFailure(error: unknown) {
           (error.status === 401 || error.status === 403)
         ? "session"
         : "internal";
+  const status =
+    error instanceof CalendarConnectionFailure
+      ? error.providerStatus
+      : undefined;
+  const http =
+    status !== undefined &&
+    Number.isInteger(status) &&
+    status >= 300 &&
+    status <= 599
+      ? `&calendar_http=${status}`
+      : "";
   return new Response(null, {
     status: 303,
     headers: {
-      Location: `/admin?calendar=failed&calendar_reason=${reason}`,
+      Location: `/admin?calendar=failed&calendar_reason=${reason}${http}`,
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
     },
@@ -223,7 +241,7 @@ async function post(url: string, body: URLSearchParams, fetcher: Transport) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
     signal: AbortSignal.timeout(8000),
-    redirect: "error",
+    redirect: "manual",
   });
 }
 export async function completeCalendar(
@@ -233,6 +251,7 @@ export async function completeCalendar(
   deps: { fetch: Transport; keys?: JWTVerifyGetKey } = { fetch: transport },
 ) {
   let stage: CalendarStage = "configuration";
+  let providerStatus: number | undefined;
   try {
     const owner = professional(p),
       cfg = configuration(env);
@@ -256,25 +275,49 @@ export async function completeCalendar(
       if (url.searchParams.has("error") || !code || code.length > 4096)
         throw new HttpError(401, "Conexão não autorizada.");
       stage = "exchange";
-      const response = await post(
-        "https://oauth2.googleapis.com/token",
-        new URLSearchParams({
-          client_id: env.GOOGLE_CLIENT_ID!,
-          client_secret: env.GOOGLE_CLIENT_SECRET!,
-          code,
-          code_verifier: txn.verifier,
-          redirect_uri: cfg.redirect,
-          grant_type: "authorization_code",
-        }),
-        deps.fetch,
-      );
+      let response: Response;
+      try {
+        response = await post(
+          "https://oauth2.googleapis.com/token",
+          new URLSearchParams({
+            client_id: env.GOOGLE_CLIENT_ID!,
+            client_secret: env.GOOGLE_CLIENT_SECRET!,
+            code,
+            code_verifier: txn.verifier,
+            redirect_uri: cfg.redirect,
+            grant_type: "authorization_code",
+          }),
+          deps.fetch,
+        );
+      } catch {
+        stage = "exchange_unavailable";
+        throw unavailable();
+      }
       if (!response.ok) {
+        providerStatus = response.status;
+        if (response.status >= 300 && response.status < 400)
+          stage = "exchange_redirect_blocked";
+        if (
+          response.status >= 500 ||
+          response.status === 429 ||
+          response.status === 408
+        )
+          stage = "exchange_unavailable";
         const result = (await response.json().catch(() => null)) as {
           error?: unknown;
         } | null;
         // Exact allowlist only: never reflect descriptions or arbitrary provider text.
         if (response.status === 400 || response.status === 401) {
           switch (result?.error) {
+            case "invalid_request":
+              stage = "exchange_invalid_request";
+              break;
+            case "invalid_scope":
+              stage = "exchange_invalid_scope";
+              break;
+            case "unsupported_grant_type":
+              stage = "exchange_unsupported_grant_type";
+              break;
             case "invalid_client":
               stage = "exchange_invalid_client";
               break;
@@ -360,7 +403,7 @@ export async function completeCalendar(
         .run();
     }
   } catch (error) {
-    throw new CalendarConnectionFailure(stage, error);
+    throw new CalendarConnectionFailure(stage, error, providerStatus);
   }
 }
 export async function disconnectCalendar(env: Env, p: Principal) {
@@ -478,7 +521,7 @@ export async function calendarBusy(
           items: [{ id: "primary" }],
         }),
         signal: AbortSignal.timeout(8000),
-        redirect: "error",
+        redirect: "manual",
       },
     );
     if (!result.ok) throw unavailable();
