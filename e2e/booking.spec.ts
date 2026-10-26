@@ -721,3 +721,85 @@ test("Calendar panel shows limited availability, connection failures and explici
     0,
   );
 });
+
+test("professional publishes and hides WhatsApp contact on the public page", async ({
+  page,
+}) => {
+  await page.goto("/p/demo");
+  await expect(
+    page.getByRole("link", { name: "Falar com o profissional" }),
+  ).toHaveCount(0);
+  await page.goto("/admin");
+  await page.getByLabel("Senha administrativa").fill("test-password-long");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  const form = page.getByRole("form", { name: "Contato pelo WhatsApp" });
+  await form
+    .getByLabel("Número do WhatsApp (com código do país)")
+    .fill("+55 (12) 99999-0000");
+  await form.getByLabel("Mostrar WhatsApp na minha página").check();
+  await form.getByRole("button", { name: "Salvar contato" }).click();
+  await expect(form.getByRole("status")).toHaveText(
+    "WhatsApp visível na sua página.",
+  );
+  await expect(
+    form.getByLabel("Número do WhatsApp (com código do país)"),
+  ).toHaveValue("5512999990000");
+  const catalog = await page.request.post("/api/admin/services", {
+    headers: { Origin: "http://localhost:5173" },
+    data: {
+      name: "Conversa a combinar",
+      description: "",
+      duration: null,
+      priceMode: "paid",
+      priceCents: null,
+      active: true,
+    },
+  });
+  expect(catalog.status()).toBe(201);
+  const service = await catalog.json();
+  await page.goto("/p/demo");
+  const link = page.getByRole("link", { name: "Falar com o profissional" });
+  const href = new URL((await link.getAttribute("href"))!);
+  expect(href.origin).toBe("https://wa.me");
+  expect(href.pathname).toBe("/5512999990000");
+  expect(href.searchParams.get("text")).toBe(
+    "Olá! Vim pelo Slotiva e gostaria de falar sobre um atendimento.",
+  );
+  await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  await page.getByRole("radio", { name: /Conversa a combinar/ }).check();
+  await expect(link).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Solicitar agendamento/ }),
+  ).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(link).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  const results = await new AxeBuilder({ page })
+    .include(".whatsapp-contact")
+    .analyze();
+  expect(results.violations).toEqual([]);
+  await page.goto("/admin");
+  await form.getByLabel("Mostrar WhatsApp na minha página").uncheck();
+  await form.getByRole("button", { name: "Salvar contato" }).click();
+  await expect(form.getByRole("status")).toHaveText(
+    "WhatsApp oculto na sua página.",
+  );
+  await page.request.put(`/api/admin/services/${service.id}`, {
+    headers: { Origin: "http://localhost:5173" },
+    data: {
+      name: service.name,
+      description: "",
+      duration: null,
+      priceMode: "paid",
+      priceCents: null,
+      active: false,
+      version: service.version,
+    },
+  });
+  await page.goto("/p/demo");
+  await expect(link).toHaveCount(0);
+});

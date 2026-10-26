@@ -1455,3 +1455,214 @@ describe("Calendar HTTP authorization and ownership", () => {
     );
   });
 });
+
+describe("Professional WhatsApp contact", () => {
+  it("publishes only enabled contact for the owning professional and guards stale edits", async () => {
+    const initial = await request(
+      "/api/admin/profile",
+      "GET",
+      undefined,
+      authA,
+    );
+    expect(await initial.json()).toMatchObject({
+      whatsappNumber: null,
+      whatsappEnabled: false,
+    });
+    const configured = await request(
+      "/api/admin/whatsapp",
+      "PUT",
+      {
+        whatsappNumber: "+55 (12) 99999-0000",
+        whatsappEnabled: true,
+        version: a.version,
+      },
+      authA,
+    );
+    expect(configured.status).toBe(200);
+    const saved = (await configured.json()) as { version: number };
+    expect(saved).toMatchObject({
+      whatsappNumber: "5512999990000",
+      whatsappEnabled: true,
+    });
+    expect(
+      await (await request(`/api/public/${a.slug}/profile`)).json(),
+    ).toMatchObject({ whatsappNumber: "5512999990000" });
+    expect(
+      await (await request(`/api/public/${b.slug}/profile`)).json(),
+    ).toMatchObject({ whatsappNumber: null });
+    expect(
+      (
+        await request(
+          "/api/admin/whatsapp",
+          "PUT",
+          {
+            whatsappNumber: null,
+            whatsappEnabled: false,
+            version: a.version,
+          },
+          authA,
+        )
+      ).status,
+    ).toBe(409);
+    const header = await request(
+      "/api/admin/profile",
+      "PUT",
+      {
+        displayName: "Renamed professional",
+        headerTitle: "Appointments",
+        headerSubtitle: "",
+        theme: "navy",
+        version: saved.version,
+      },
+      authA,
+    );
+    const updated = (await header.json()) as { version: number };
+    expect(updated).toMatchObject({
+      whatsappNumber: "5512999990000",
+      whatsappEnabled: true,
+    });
+    const disabled = await request(
+      "/api/admin/whatsapp",
+      "PUT",
+      {
+        whatsappNumber: "5512999990000",
+        whatsappEnabled: false,
+        version: updated.version,
+      },
+      authA,
+    );
+    expect(disabled.status).toBe(200);
+    const off = (await disabled.json()) as { version: number };
+    expect(off).toMatchObject({
+      whatsappNumber: "5512999990000",
+      whatsappEnabled: false,
+    });
+    const publicData = await (
+      await request(`/api/public/${a.slug}/profile`)
+    ).json();
+    expect(publicData).toMatchObject({ whatsappNumber: null });
+    expect(JSON.stringify(publicData)).not.toContain("5512999990000");
+    const cleared = await request(
+      "/api/admin/whatsapp",
+      "PUT",
+      {
+        whatsappNumber: "",
+        whatsappEnabled: false,
+        version: off.version,
+      },
+      authA,
+    );
+    expect(await cleared.json()).toMatchObject({
+      whatsappNumber: null,
+      whatsappEnabled: false,
+    });
+  });
+
+  it("rejects unauthorized writes, foreign owners and malformed numbers without changing the profile", async () => {
+    const data = {
+      whatsappNumber: "5512999990000",
+      whatsappEnabled: true,
+      version: a.version,
+    };
+    expect((await request("/api/admin/whatsapp", "PUT", data)).status).toBe(
+      401,
+    );
+    expect(
+      (await request("/api/admin/whatsapp", "PUT", data, master)).status,
+    ).toBe(403);
+    expect(
+      (
+        await request("/api/admin/whatsapp", "PUT", data, {
+          ...authA,
+          Origin: "https://other.example",
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(
+          "/api/admin/whatsapp",
+          "PUT",
+          { ...data, professionalId: b.id },
+          authA,
+        )
+      ).status,
+    ).toBe(422);
+    for (const number of [
+      "",
+      null,
+      "javascript:alert(1)",
+      "https://wa.me/5512999990000",
+      "5512999990000?text=secret",
+      "00000000",
+      "123",
+      "1".repeat(16),
+      "55ABC12999990000",
+    ]) {
+      expect(
+        (
+          await request(
+            "/api/admin/whatsapp",
+            "PUT",
+            { ...data, whatsappNumber: number },
+            authA,
+          )
+        ).status,
+      ).toBe(422);
+    }
+    expect(
+      await (
+        await request("/api/admin/profile", "GET", undefined, authA)
+      ).json(),
+    ).toMatchObject({
+      version: a.version,
+      whatsappNumber: null,
+      whatsappEnabled: false,
+    });
+    await expect(
+      db
+        .prepare(
+          "UPDATE professionals SET whatsapp_number='javascript:bad',whatsapp_enabled=1 WHERE id=?",
+        )
+        .bind(a.id)
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .prepare("UPDATE professionals SET whatsapp_enabled=1 WHERE id=?")
+        .bind(a.id)
+        .run(),
+    ).rejects.toThrow();
+    const privateA = (await (
+      await request("/api/admin/profile", "GET", undefined, authA)
+    ).json()) as { version: number };
+    expect(
+      (
+        await request(
+          "/api/admin/whatsapp",
+          "PUT",
+          { ...data, version: privateA.version },
+          authA,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      await (
+        await request("/api/admin/profile", "GET", undefined, authB)
+      ).json(),
+    ).toMatchObject({ whatsappNumber: null, whatsappEnabled: false });
+    await request(
+      `/api/master/professionals/${a.id}/status`,
+      "PUT",
+      {
+        status: "suspended",
+        version: privateA.version + 1,
+      },
+      master,
+    );
+    expect((await request(`/api/public/${a.slug}/profile`)).status).toBe(404);
+    expect(
+      (await request("/api/admin/whatsapp", "PUT", data, authA)).status,
+    ).toBe(401);
+  });
+});

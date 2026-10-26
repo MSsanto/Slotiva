@@ -72,6 +72,18 @@ Rolling back only the Worker may leave it incompatible with the database.
 `main` is connected to Cloudflare Builds. Production release needs its own
 backup, migration and deployment window.
 
+## WhatsApp contact rollout
+
+Apply additive migration 0009 to the isolated Preview database before publishing
+the matching Worker. Existing profiles default to hidden contact; previous Worker
+versions can ignore these new columns. The health probe now checks both columns.
+
+In /admin > Contato pelo WhatsApp, save a number with country code and enable
+publication. Check the public link and its neutral message, then disable it and
+verify the contact disappears. Repeat with two professional pages to check
+ownership. Phone formatting is validated; the professional must check that the
+destination is their intended WhatsApp account.
+
 ## Acceptance checks
 
 Use fictional customers and two professional accounts.
