@@ -50,7 +50,9 @@ to these agreements. Working hours and conflict checks still apply.
 ## Agenda views
 
 The professional agenda opens on Hoje. Noncancelled rows are grouped by their
-Brasília calendar date: today, future dates and earlier history. Cancelados
+Brasília calendar date: today, future dates and earlier history. Futuros filters
+by a selected year/month, initially the next reservation's month, and retains the
+choice when changing tabs. Its tab count includes all future months. Cancelados
 contains cancellations regardless of date. Today/future rows sort chronologically;
 history/cancellations show the latest date first. Past and cancelled rows have no
 mutation controls. Grouping refreshes every 30 seconds and when the page regains
