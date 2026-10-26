@@ -102,10 +102,10 @@ export async function redeemCustomerLink(
   if (!/^[a-f0-9]{64}$/.test(token))
     throw new HttpError(404, "Link inválido ou expirado.");
   const link = await env.DB.prepare(
-    "SELECT l.booking_id FROM customer_links l JOIN bookings b ON b.id=l.booking_id JOIN professionals p ON p.id=b.professional_id AND p.status='active' WHERE l.token_hash=? AND l.expires_at>?",
+    "SELECT l.booking_id,l.email_hash,b.email FROM customer_links l JOIN bookings b ON b.id=l.booking_id JOIN professionals p ON p.id=b.professional_id AND p.status='active' WHERE l.token_hash=? AND l.expires_at>?",
   )
     .bind(await digest(token), now())
-    .first<{ booking_id: string }>();
+    .first<{ booking_id: string; email_hash: string | null; email: string }>();
   if (!link) throw new HttpError(404, "Link inválido ou expirado.");
   const grant = await prepareGrant(request, env, link.booking_id);
   // The guarded INSERT and one-use DELETE share the same transaction.
@@ -118,6 +118,9 @@ export async function redeemCustomerLink(
       await digest(token),
       now(),
     ),
+    env.DB.prepare(
+      "INSERT INTO verified_booking_contacts(booking_id,email_hash) SELECT booking_id,email_hash FROM customer_links WHERE token_hash=? AND expires_at>? AND email_hash=? ON CONFLICT(booking_id) DO UPDATE SET email_hash=excluded.email_hash,verified_at=unixepoch()",
+    ).bind(await digest(token), now(), await digest(link.email.toLowerCase())),
     env.DB.prepare("DELETE FROM customer_links WHERE token_hash=?").bind(
       await digest(token),
     ),

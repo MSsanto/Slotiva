@@ -18,7 +18,8 @@
 - Public slot selection now excludes Google busy intervals; validate live provider
   errors and reconnect behavior in Preview.
 - Reconcile edits made directly in Google; reservations currently change in Slotiva.
-- Deliver transactional emails and recover customer access on a new browser/device.
+- Transactional email and booking-reference recovery are implemented behind
+  explicit sender configuration. Configure and validate a real sender in Preview.
 
 Slotiva remains the source of truth for bookings. External delivery failures need
 a visible retry state separate from booking status. Customer access across devices

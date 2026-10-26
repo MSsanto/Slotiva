@@ -1,3 +1,4 @@
+import CustomerRecovery from "./CustomerRecovery";
 import { BookingChangeRequest } from "./BookingChanges";
 import { useParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
@@ -362,6 +363,14 @@ export default function BookingPage() {
             {errorMessage(receiptState.error)}
           </p>
         )}
+        <label>
+          Código da reserva
+          <input
+            readOnly
+            value={confirmed.id}
+            onFocus={(e) => e.target.select()}
+          />
+        </label>
         <div className="receipt">
           <strong>{confirmed.serviceName}</strong>
           <p>
@@ -505,6 +514,7 @@ export default function BookingPage() {
           </button>
         </section>
       )}
+      <CustomerRecovery slug={slug ?? "demo"} />
       <div className="workspace">
         <aside className="profile">
           <div className="avatar">

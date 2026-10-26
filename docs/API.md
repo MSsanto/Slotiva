@@ -353,3 +353,28 @@ same decision/version returns the committed result. Cancellation of the original
 cancels a pending proposal. Proposals expire after 24 hours; they cannot be approved
 once the original or proposed meeting has started. A confirmed recurring occurrence
 is replaced individually; the other occurrences remain unchanged.
+
+## Transactional email and recovery
+
+Email requires explicit EMAIL_ENABLED=true, a verified EMAIL_FROM, Resend
+EMAIL_API_KEY, independent 32-byte base64 EMAIL_TOKEN_KEY and PUBLIC_ORIGIN.
+`GET /api/customer/delivery` reports only whether it is configured.
+`POST /api/customer/recovery` takes `{bookingId,email,slug}` and exact Origin.
+It always returns the same 202 response for valid input, whether the booking
+matches or not. Limits are five attempts per IP/hour and three matching recovery
+requests per booking/hour. Disabled configuration returns 503, not a false send.
+
+Matching recovery creates an encrypted email job and a hashed, single-use link
+valid for 30 minutes. Mailbox proof is recorded per booking when an emailed link
+is redeemed. Manually generated device links do not verify contact ownership.
+Shared addresses never merge reservations or client identities automatically.
+
+`GET /api/admin/delivery` lists own last 100 jobs without recipient addresses or
+mail bodies. `POST /api/admin/delivery/retry` retries own failed, unexpired jobs.
+New booking/status triggers queue messages; older history is not backfilled.
+Consumers process three jobs per pass, use leases and stable Resend idempotency
+keys, freeze encrypted request bodies before network I/O and clear them after
+acceptance or expiry. Retries stop within 23 hours, inside Resend's 24-hour key
+window. Obsolete status messages expire instead of reporting stale states.
+Recovery jobs expire after 30 minutes. Accepted means the provider accepted the
+request, not confirmed inbox delivery. Google invitations remain separate.
