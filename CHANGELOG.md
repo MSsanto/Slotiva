@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Adds optional professional WhatsApp contact settings and a public contact link
+  on booking pages and receipts. Hidden by default; uses a neutral message.
+- Adds migration 0009 for per-professional contact number and visibility.
+
 - Simplified project documentation and contribution guidance.
 - Consolidated architecture and operations notes; kept historical development
   notes in Git history.

@@ -20,6 +20,8 @@ import {
   publicPath,
 } from "../api";
 
+import WhatsAppContact from "./WhatsAppContact";
+
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Informe seu nome.").max(100),
   email: z.email("Informe um e-mail válido.").max(200),
@@ -352,6 +354,7 @@ export default function BookingPage() {
             atual permanece confirmado.
           </p>
         )}
+        <WhatsAppContact number={profile.data?.whatsappNumber} />
         {active && (
           <button
             className="text-button"
@@ -439,6 +442,7 @@ export default function BookingPage() {
             </div>
             <p className="hint">{service?.description}</p>
           </fieldset>
+          <WhatsAppContact number={profile.data?.whatsappNumber} />
           {!services.data?.length && (
             <p role="status">
               Nenhum serviço disponível no momento. Entre em contato com o

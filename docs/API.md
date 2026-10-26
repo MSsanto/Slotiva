@@ -9,7 +9,7 @@ No caller-provided professional ID chooses the authenticated tenant.
 ## Public professional page
 
 `GET /api/public/{slug}/profile` returns id, slug, displayName, headerTitle,
-headerSubtitle and theme. It never exposes email, Google subject or version.
+headerSubtitle, theme and whatsappNumber (null when hidden). It never exposes email, Google subject or version.
 Suspended/deleted/unknown profiles return 404. In Google mode the fictional demo
 profile is hidden. `/p/{slug}` is the corresponding frontend URL.
 
@@ -255,3 +255,22 @@ exchange_redirect_uri_mismatch, grant, scope, identity, account, encryption,
 storage, session or internal. Provider mappings accept only exact allowlisted
 codes on HTTP 400/401; other exchange failures use exchange. Unknown UI codes
 use generic guidance. Provider bodies, tokens and exception messages are omitted.
+
+## Professional WhatsApp contact
+
+PUT `/api/admin/whatsapp` accepts
+`{whatsappNumber:string|null,whatsappEnabled:boolean,version:number}` and returns
+the updated private profile. It requires the professional session and exact Origin;
+ownership comes from the session. Master credentials and owner IDs in the payload
+are rejected. Stale versions return 409 and invalid contact data returns 422.
+
+The number is optional when hidden, required when enabled, and normalized to
+8–15 international-format digits, starting with 1–9. A leading +, spaces,
+parentheses and hyphens are accepted; blank clears the stored number. Private
+profile responses include the saved number and whatsappEnabled. Public profiles
+return only the enabled number, or null; a disabled saved number is not disclosed.
+Suspended/deleted professional pages remain unavailable.
+
+The public page and customer receipt build a fixed wa.me link with a neutral
+message and no customer/booking data. Contact does not mutate booking status.
+Migration 0009 adds the contact fields; existing professionals start with it hidden.

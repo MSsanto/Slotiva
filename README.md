@@ -12,6 +12,7 @@ Built with React, TypeScript, Vite, Cloudflare Workers and D1.
 
 - Google sign-in, professional invitations and separate administrator access.
 - Public pages at `/p/{slug}`, with editable branding, services and working hours.
+- Optional WhatsApp contact configured and enabled by each professional.
 - Booking requests with 48-hour notice and a 24-hour approval deadline.
 - Direct entry of agreed appointments, including finite weekly or fortnightly series.
 - Conflict protection in the database and cancellation history.

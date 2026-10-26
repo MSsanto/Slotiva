@@ -100,6 +100,7 @@ export const formatDeadline = (seconds: number) =>
   }).format(new Date(seconds * 1000));
 
 export type ProfessionalProfile = {
+  whatsappNumber: string | null;
   id: string;
   slug: string;
   displayName: string;
@@ -108,6 +109,7 @@ export type ProfessionalProfile = {
   theme: "forest" | "navy" | "plum";
 };
 export type ManagedProfessional = ProfessionalProfile & {
+  whatsappEnabled: boolean;
   status: "active" | "suspended" | "deleted";
   invitedEmail: string | null;
   googleSubject: string | null;
@@ -133,3 +135,10 @@ export const servicePriceLabel = (
 
 export const serviceDurationLabel = (duration: number | null) =>
   duration === null ? "Duração a combinar" : `${duration} min`;
+
+export function whatsappContactUrl(number: string | null | undefined) {
+  if (!number || !/^[1-9][0-9]{7,14}$/.test(number)) return null;
+  const message =
+    "Olá! Vim pelo Slotiva e gostaria de falar sobre um atendimento.";
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+}

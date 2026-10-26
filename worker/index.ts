@@ -18,6 +18,8 @@ import {
   professionalBySlug,
   professionalById,
   publicProfile,
+  saveWhatsApp,
+  whatsappSchema,
   privateProfile,
   createProfessional,
   editProfessional,
@@ -200,7 +202,9 @@ async function route(request: Request, env: Env) {
     await env.DB.prepare(
       "SELECT professional_id FROM bookings LIMIT 1",
     ).first();
-    await env.DB.prepare("SELECT 1 FROM professionals LIMIT 1").first();
+    await env.DB.prepare(
+      "SELECT whatsapp_number,whatsapp_enabled FROM professionals LIMIT 1",
+    ).first();
     await env.DB.prepare(
       "SELECT source,series_id FROM bookings LIMIT 1",
     ).first();
@@ -521,6 +525,15 @@ async function route(request: Request, env: Env) {
           principal.subject,
           await read(request, editServiceSchema),
           serviceMatch[1],
+        ),
+      );
+    if (path === "/api/admin/whatsapp" && method === "PUT")
+      return json(
+        await saveWhatsApp(
+          env,
+          professionalId,
+          await read(request, whatsappSchema),
+          principal.subject,
         ),
       );
     if (path === "/api/admin/profile" && method === "GET")

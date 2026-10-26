@@ -681,3 +681,24 @@ h2:focus {
   border-bottom: 1px solid #dfe5d9;
   padding: 12px 0;
 }
+
+.whatsapp-contact {
+  margin: 20px 0;
+}
+.whatsapp-contact a {
+  display: inline-block;
+  padding: 12px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  color: var(--accent, #223c36);
+  font-weight: 600;
+}
+.whatsapp-contact a:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+.whatsapp-contact small {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.5;
+}
