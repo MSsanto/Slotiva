@@ -191,12 +191,21 @@ test("professional explicitly chooses only this occurrence or all future series 
   const rows = page
     .locator(".appointment")
     .filter({ hasText: "Recurring Browser Demo" });
-  await expect(rows).toHaveCount(4);
+  const dates = Array.from({ length: 4 }, (_, index) => {
+    const occurrence = new Date(d);
+    occurrence.setUTCDate(occurrence.getUTCDate() + index * 14);
+    return occurrence.toISOString().slice(0, 10);
+  });
+  const selectedMonth = dates[2].slice(0, 7);
+  const monthlyDates = dates.filter((date) => date.startsWith(selectedMonth));
+  const targetIndex = monthlyDates.indexOf(dates[2]);
+  await page.getByLabel("Mês dos agendamentos").fill(selectedMonth);
+  await expect(rows).toHaveCount(monthlyDates.length);
   page.once("dialog", async (dialog) => {
     await dialog.dismiss();
   });
   await rows
-    .nth(2)
+    .nth(targetIndex)
     .getByRole("button", { name: "Cancelar só esta", exact: true })
     .click();
   await expect(rows.filter({ hasText: "Cancelado" })).toHaveCount(0);
@@ -208,27 +217,27 @@ test("professional explicitly chooses only this occurrence or all future series 
     await dialog.accept();
   });
   await rows
-    .nth(2)
+    .nth(targetIndex)
     .getByRole("button", { name: "Cancelar só esta", exact: true })
     .click();
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(monthlyDates.length - 1);
   await expect(
     rows.filter({ hasText: "Confirmado pelo profissional" }),
-  ).toHaveCount(3);
+  ).toHaveCount(monthlyDates.length - 1);
   await page.getByRole("tab", { name: /^Cancelados/ }).click();
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("Cancelado");
   await expect(rows.getByRole("button")).toHaveCount(0);
   await page.getByRole("tab", { name: /^Futuros/ }).click();
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(monthlyDates.length - 1);
   page.once("dialog", async (dialog) => {
     await dialog.dismiss();
   });
   await rows
-    .nth(1)
+    .last()
     .getByRole("button", { name: "Cancelar todas da série", exact: true })
     .click();
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(monthlyDates.length - 1);
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain(
       "Cancelar TODOS os encontros futuros desta série",
@@ -239,7 +248,7 @@ test("professional explicitly chooses only this occurrence or all future series 
     await dialog.accept();
   });
   await rows
-    .nth(1)
+    .last()
     .getByRole("button", { name: "Cancelar todas da série", exact: true })
     .click();
   await expect(rows).toHaveCount(0);
