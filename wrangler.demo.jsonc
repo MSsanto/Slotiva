@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Local fictional demo only. This ID is deliberately not a provisioned remote D1.
+  "name": "slotiva-local-demo",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-19",
+  "assets": {"directory":"./dist","binding":"ASSETS","not_found_handling":"single-page-application","run_worker_first":["/api/*"]},
+  "d1_databases": [{"binding":"DB","database_name":"slotiva-local-demo","database_id":"00000000-0000-4000-8000-000000000001","migrations_dir":"migrations"}],
+  "vars": {"AUTH_MODE":"demo","COOKIE_SECURE":"false","EMAIL_ENABLED":"false"}
+}

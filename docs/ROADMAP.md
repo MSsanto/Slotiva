@@ -5,8 +5,8 @@
 - Customer reload continuity and one-use cross-device links are implemented;
   validate the 30-day cookie and 30-minute link in Preview. Revocation, expiry and
   booking/tenant isolation have automated coverage.
-- Prepare an isolated demo with fictional professionals, services and working
-  hours, plus a repeatable reset. Keep demo data separate from real appointments.
+- Isolated local demo, fictional seed and guarded reset are implemented. CI
+  verifies startup and captures the public page; real appointments stay separate.
 - Verify the complete request → professional approval → customer status →
   cancellation flow, including reload and released availability.
 
@@ -49,8 +49,8 @@ is separate from preserving the current browser session after reload.
 
 ## Portfolio presentation
 
-- Add a concise architecture diagram and a representative demo screenshot to
-  the README; keep it readable in two minutes.
+- README architecture diagram is present. CI captures a fictional demo screenshot
+  for review before adding the image to the repository.
 - Integrate the approved logo variants, favicon and mobile icon.
 
 ## Before a customer pilot

@@ -275,7 +275,6 @@ export default function BookingPage() {
               <button
                 type="button"
                 key={d.key}
-                aria-label={`${d.weekday}, ${d.day} de ${d.month}`}
                 aria-pressed={date === d.key}
                 onClick={() => {
                   setDate(d.key);

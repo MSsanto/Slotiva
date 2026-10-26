@@ -1103,3 +1103,22 @@ test("customer proposes a confirmed appointment change and opens the approved re
     customer.getByRole("status").filter({ hasText: "Reserva cancelada." }),
   ).toBeVisible();
 });
+
+test("public booking remains usable with keyboard at a narrow mobile width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const service = page.getByRole("radio").nth(1);
+  await expect(service).toBeVisible();
+  await service.focus();
+  await service.press("Space");
+  await expect(service).toBeChecked();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+});
