@@ -3,7 +3,7 @@ import ServiceSettings from "./ServiceSettings";
 import AgreedBookings from "./AgreedBookings";
 import { Navigate } from "react-router-dom";
 import ProfessionalSettings from "./ProfessionalSettings";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
@@ -16,6 +16,8 @@ import {
   type Booking,
   type Hours,
 } from "../api";
+import { brasiliaDate, groupAgenda, type AgendaTab } from "../agenda";
+
 const googleFailureMessages = new Map(
   Object.entries({
     configuration: "A configuração do acesso Google está incompleta.",
@@ -48,9 +50,19 @@ export default function AdminPage() {
   const client = useQueryClient();
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
-  const [bookingTab, setBookingTab] = useState<"agenda" | "cancelled">(
-    "agenda",
-  );
+  const [bookingTab, setBookingTab] = useState<AgendaTab>("today");
+  const [today, setToday] = useState(brasiliaDate);
+  useEffect(() => {
+    const update = () => setToday(brasiliaDate());
+    const timer = window.setInterval(update, 30000);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
   const bookingTabButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const session = useQuery({
     queryKey: ["session"],
@@ -77,7 +89,7 @@ export default function AdminPage() {
   const logout = useMutation({
     mutationFn: () => api("/admin/logout", { method: "POST" }),
     onSuccess: () => {
-      setBookingTab("agenda");
+      setBookingTab("today");
       client.removeQueries({ queryKey: ["admin"] });
       void client.invalidateQueries({ queryKey: ["session"] });
     },
@@ -219,16 +231,20 @@ export default function AdminPage() {
       </section>
     );
   if (session.data?.role === "master") return <Navigate to="/master" replace />;
-  const cancelledBookings =
-    bookings.data?.filter((b) => b.status === "cancelled") || [];
-  const agendaBookings =
-    bookings.data?.filter((b) => b.status !== "cancelled") || [];
-  const visibleBookings =
-    bookingTab === "cancelled" ? cancelledBookings : agendaBookings;
+  const groups = groupAgenda(bookings.data ?? [], today);
+  const visibleBookings = groups[bookingTab];
   const bookingTabs = [
-    { id: "agenda", label: "Agenda", count: agendaBookings.length },
-    { id: "cancelled", label: "Cancelados", count: cancelledBookings.length },
+    { id: "today", label: "Hoje", count: groups.today.length },
+    { id: "future", label: "Futuros", count: groups.future.length },
+    { id: "cancelled", label: "Cancelados", count: groups.cancelled.length },
+    { id: "history", label: "Histórico", count: groups.history.length },
   ] as const;
+  const emptyMessages: Record<AgendaTab, string> = {
+    today: "Nenhum agendamento para hoje.",
+    future: "Nenhum agendamento futuro.",
+    cancelled: "Nenhuma reserva cancelada.",
+    history: "Nenhum agendamento anterior.",
+  };
   const error =
     bookings.error ||
     hours.error ||
@@ -263,17 +279,23 @@ export default function AdminPage() {
           </button>
         </p>
       )}
+      <p className="hint">
+        Datas no horário de Brasília. Histórico mantém os agendamentos de dias
+        anteriores.
+      </p>
       <div
         className="booking-tabs"
         role="tablist"
         aria-label="Reservas da agenda"
         onKeyDown={(event) => {
-          const current = bookingTab === "agenda" ? 0 : 1;
+          const current = bookingTabs.findIndex((tab) => tab.id === bookingTab);
           let next: number;
-          if (event.key === "ArrowLeft" || event.key === "ArrowRight")
-            next = 1 - current;
+          if (event.key === "ArrowLeft")
+            next = (current + bookingTabs.length - 1) % bookingTabs.length;
+          else if (event.key === "ArrowRight")
+            next = (current + 1) % bookingTabs.length;
           else if (event.key === "Home") next = 0;
-          else if (event.key === "End") next = 1;
+          else if (event.key === "End") next = bookingTabs.length - 1;
           else return;
           event.preventDefault();
           setBookingTab(bookingTabs[next].id);
@@ -307,11 +329,7 @@ export default function AdminPage() {
         {bookings.isPending ? (
           <p role="status">Carregando reservas…</p>
         ) : bookings.isError ? null : visibleBookings.length === 0 ? (
-          <p className="empty">
-            {bookingTab === "cancelled"
-              ? "Nenhuma reserva cancelada."
-              : "Nenhuma reserva nesta aba."}
-          </p>
+          <p className="empty">{emptyMessages[bookingTab]}</p>
         ) : (
           visibleBookings.map((b) => (
             <article className="appointment" key={b.id}>
@@ -340,7 +358,7 @@ export default function AdminPage() {
                 )}
               </div>
               <div>
-                {b.status === "pending_approval" && (
+                {b.date >= today && b.status === "pending_approval" && (
                   <>
                     <button
                       className="primary"
@@ -362,29 +380,30 @@ export default function AdminPage() {
                     </button>
                   </>
                 )}
-                {(b.status === "confirmed" ||
-                  b.status === "pending_approval") && (
-                  <button
-                    className="text-button"
-                    disabled={
-                      cancel.isPending ||
-                      cancelSeries.isPending ||
-                      decision.isPending
-                    }
-                    onClick={() => {
-                      if (
-                        !b.seriesId ||
-                        window.confirm(
-                          `Cancelar somente o encontro de ${formatDate(b.date)} às ${b.time}? Os outros encontros da série serão preservados.`,
+                {b.date >= today &&
+                  (b.status === "confirmed" ||
+                    b.status === "pending_approval") && (
+                    <button
+                      className="text-button"
+                      disabled={
+                        cancel.isPending ||
+                        cancelSeries.isPending ||
+                        decision.isPending
+                      }
+                      onClick={() => {
+                        if (
+                          !b.seriesId ||
+                          window.confirm(
+                            `Cancelar somente o encontro de ${formatDate(b.date)} às ${b.time}? Os outros encontros da série serão preservados.`,
+                          )
                         )
-                      )
-                        cancel.mutate(b.id);
-                    }}
-                  >
-                    {b.seriesId ? "Cancelar só esta" : "Cancelar reserva"}
-                  </button>
-                )}
-                {b.seriesId && b.status === "confirmed" && (
+                          cancel.mutate(b.id);
+                      }}
+                    >
+                      {b.seriesId ? "Cancelar só esta" : "Cancelar reserva"}
+                    </button>
+                  )}
+                {b.date >= today && b.seriesId && b.status === "confirmed" && (
                   <button
                     className="text-button"
                     disabled={cancelSeries.isPending || cancel.isPending}

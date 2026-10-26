@@ -47,6 +47,16 @@ That path confirms immediately and supports 1–26 occurrences, once, weekly or
 fortnightly, within 366 days. The public notice and approval rules do not apply
 to these agreements. Working hours and conflict checks still apply.
 
+## Agenda views
+
+The professional agenda opens on Hoje. Noncancelled rows are grouped by their
+Brasília calendar date: today, future dates and earlier history. Cancelados
+contains cancellations regardless of date. Today/future rows sort chronologically;
+history/cancellations show the latest date first. Past and cancelled rows have no
+mutation controls. Grouping refreshes every 30 seconds and when the page regains
+focus or visibility, so the day can change without a reload. Backend authorization
+and scheduling rules are unchanged.
+
 ## Conflicts and retries
 
 Availability reads help the user choose a time; database constraints decide

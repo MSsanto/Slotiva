@@ -35,6 +35,9 @@ is separate from preserving the current browser session after reload.
 
 ## Implemented — awaiting Preview rollout
 
+- Agenda views for today, future appointments, cancellations and earlier history,
+  using Brasília dates. No migration; check date rollover and keyboard navigation.
+
 - Master restoration of deleted professional profiles, preserving original
   identity and cancelled history. Apply migration 0010 and validate restoration.
 

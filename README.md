@@ -17,6 +17,7 @@ Built with React, TypeScript, Vite, Cloudflare Workers and D1.
 - Booking requests with 48-hour notice and a 24-hour approval deadline.
 - Direct entry of agreed appointments, including finite weekly or fortnightly series.
 - Conflict protection in the database and cancellation history.
+- Professional agenda views for Hoje, Futuros, Cancelados and Histórico, using Brasília dates.
 - Separate Google Calendar consent and manual lookup of occupied intervals.
 
 Calendar connection is still being validated in Preview. Token transport now uses
