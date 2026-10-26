@@ -1,13 +1,12 @@
-import MasterPage from "./pages/MasterPage";
+import { AdminPage, MasterPage } from "./pages/LazyPanels";
 import HomePage from "./pages/HomePage";
-import { StrictMode } from "react";
+import { StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider, Link } from "react-router-dom";
 import "./index.css";
 import App from "./App";
 import PublicBookingPage from "./pages/PublicBookingPage";
-import AdminPage from "./pages/AdminPage";
 const client = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 0 },
@@ -20,8 +19,22 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/p/:slug", element: <PublicBookingPage /> },
-      { path: "/master", element: <MasterPage /> },
-      { path: "/admin", element: <AdminPage /> },
+      {
+        path: "/master",
+        element: (
+          <Suspense fallback={<p role="status">Carregando painel…</p>}>
+            <MasterPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "/admin",
+        element: (
+          <Suspense fallback={<p role="status">Carregando agenda…</p>}>
+            <AdminPage />
+          </Suspense>
+        ),
+      },
       {
         path: "*",
         element: (

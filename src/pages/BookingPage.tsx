@@ -1,3 +1,4 @@
+import CustomerPrivacy from "./CustomerPrivacy";
 import CustomerRecovery from "./CustomerRecovery";
 import { BookingChangeRequest } from "./BookingChanges";
 import { useParams } from "react-router-dom";
@@ -468,6 +469,10 @@ export default function BookingPage() {
             setRescheduling(false);
             setTime("");
           }}
+        />
+        <CustomerPrivacy
+          booking={current ?? confirmed}
+          headers={customerHeaders}
         />
         <WhatsAppContact number={profile.data?.whatsappNumber} />
         {active && (

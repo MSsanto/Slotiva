@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Professional client records keep shared addresses separate, show booking-scoped
+  mailbox proof, allow explicit versioned booking associations and preserve history
+  when archived. Contact edits do not silently rewrite existing reservations.
+- Scoped JSON exports and customer deletion requests support privacy review without
+  treating archive as erasure or inventing a medical-record retention period.
+- Administrative panels load separately; the public JavaScript bundle is below
+  the previous 500 kB warning threshold.
+
 - Isolated local demo with fictional appointments, a repeatable guarded reset,
   disabled external delivery and a dedicated local D1 configuration.
 - Backup/restore drill verifies SQLite integrity, foreign keys, schema and row

@@ -378,3 +378,33 @@ acceptance or expiry. Retries stop within 23 hours, inside Resend's 24-hour key
 window. Obsolete status messages expire instead of reporting stale states.
 Recovery jobs expire after 30 minutes. Accepted means the provider accepted the
 request, not confirmed inbox delivery. Google invitations remain separate.
+
+## Client records and privacy review
+
+Migration 0016 creates separate client records for public requests; professional
+series share their explicit series identity. Equal names/addresses never merge
+records. A changed appointment inherits the original client association.
+`GET /api/admin/clients?q=TEXT&archived=false` returns at most 200 own records,
+counts, shared-email flags and mailbox-proof timestamps. A proof is valid only for
+the current contact email and a linked booking that redeemed an emailed link.
+It does not identify a unique person or authorize other appointments.
+
+Create/update use `POST /api/admin/clients` and `PUT /api/admin/clients/:id` with
+`{name,email,phone,archived,version}`. Version 0 creates. Phone is optional E.164-style
+text and is never labelled verified. Updates do not rewrite booking snapshots.
+`DELETE` with `{version}` removes only a record with no linked history; otherwise
+409 directs the professional to archive. Archive does not cancel appointments.
+
+`GET /api/admin/client-links` returns own versioned booking associations.
+`POST /api/admin/clients/:id/assign` takes `{bookingId,version}` and checks both
+owners and the existing link version. It changes the professional's association,
+not customer access grants. `GET /api/admin/clients/:id/export` returns the own
+record and linked booking outputs, never capabilities or encrypted credentials.
+
+Authorized customers export only the named booking with `GET /api/bookings/:id/export`.
+`POST /api/bookings/:id/privacy` accepts `{kind:"export"|"delete"}` and exact Origin;
+one open request per booking/kind is recorded. It does not cancel or erase records.
+Professionals review own requests through GET /api/admin/privacy and guarded
+PUT /api/admin/privacy/:id `{state:"reviewing"|"closed",version}`. These states
+track human review, not proof of deletion. Define the professional's retention
+policy and external-provider erasure procedure before real customer operation.

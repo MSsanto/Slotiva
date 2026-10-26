@@ -198,3 +198,20 @@ Capture only the fictional demo with `npm run demo:capture` after installing
 Chromium through Playwright. CI runs the seed/restore check and provides the
 fictional-demo-preview artifact. Do not use a signed-in customer browser for
 portfolio screenshots.
+
+## Client data requests
+
+Client records, booking associations and mailbox proof are separate concepts.
+A shared email is not a unique patient identifier. Do not merge records solely
+because a name or address matches. The professional can explicitly assign a
+booking to an existing record; this does not grant that client access to other
+appointments. Email edits invalidate the displayed proof for the previous address.
+
+Customers can export the reservation they control and record deletion requests.
+The professional's panel supports exports, archive and privacy review. Archive
+is not erasure. The application does not silently delete booking history or
+invent retention periods. Before a real pilot, agree retention, cancellation
+terms and the support channel with the professional, obtain appropriate review,
+and document how provider copies/notifications and backups are handled. Record
+review state only after the corresponding human action; do not mark a request
+closed as a substitute for fulfilling it.

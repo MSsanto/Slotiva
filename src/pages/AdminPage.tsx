@@ -1,3 +1,4 @@
+import ClientSettings from "./ClientSettings";
 import EmailSettings from "./EmailSettings";
 import BookingChanges from "./BookingChanges";
 import DateHoursSettings from "./DateHoursSettings";
@@ -461,6 +462,7 @@ export default function AdminPage() {
           ))
         )}
       </div>
+      <ClientSettings bookings={bookings.data ?? []} />
       <BookingChanges />
       <AgreedBookings />
       <DateHoursSettings />
