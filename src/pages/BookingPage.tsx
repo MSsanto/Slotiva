@@ -395,7 +395,6 @@ export default function BookingPage() {
             <span>↗ &nbsp; Atendimento on-line</span>
             <span>◎ &nbsp; Horário de Brasília</span>
           </div>
-          <WhatsAppContact number={profile.data?.whatsappNumber} />
           <div className="note">
             <strong>Feito para acolher.</strong>
             <p>Você pode navegar por toda a reserva usando o teclado.</p>
@@ -443,6 +442,7 @@ export default function BookingPage() {
             </div>
             <p className="hint">{service?.description}</p>
           </fieldset>
+          <WhatsAppContact number={profile.data?.whatsappNumber} />
           {!services.data?.length && (
             <p role="status">
               Nenhum serviço disponível no momento. Entre em contato com o
