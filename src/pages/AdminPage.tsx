@@ -1,3 +1,4 @@
+import BookingChanges from "./BookingChanges";
 import DateHoursSettings from "./DateHoursSettings";
 import CalendarSettings from "./CalendarSettings";
 import ServiceSettings from "./ServiceSettings";
@@ -459,6 +460,7 @@ export default function AdminPage() {
           ))
         )}
       </div>
+      <BookingChanges />
       <AgreedBookings />
       <DateHoursSettings />
       {authOptions.data?.googleEnabled && <CalendarSettings />}

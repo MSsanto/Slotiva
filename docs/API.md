@@ -333,3 +333,23 @@ normally closed weekdays. SQL guards apply to public requests, professional seri
 and booking updates. A conflicting exception returns 409 and preserves existing
 reservations. Public slot selection now excludes Google busy intervals, including
 the Slotiva buffer. Provider failure never implies an available external interval.
+
+## Confirmed appointment changes
+
+`POST /api/bookings/:id/change` takes `{date,time}` with customer authorization and
+exact Origin. Only future confirmed bookings accept proposals. The proposed time
+must meet public notice/window rules. It is not held while awaiting approval;
+the current booking remains confirmed. One pending proposal per booking is allowed.
+`GET` on the same route returns the latest proposal, without contact details.
+
+`GET /api/admin/booking-changes` lists own pending proposals. Professionals decide
+through `POST /api/admin/booking-changes/:id/approve` or `/reject` with `{version}`.
+An approval checks Google availability and atomically cancels the original,
+creates a confirmed one-off replacement with the same immutable service terms,
+and transfers current browser grants. The old capability also authorizes the
+replacement. Outbox and Calendar jobs follow both transitions. A conflicting slot,
+changed service or stale original version rolls back all changes. Repeating the
+same decision/version returns the committed result. Cancellation of the original
+cancels a pending proposal. Proposals expire after 24 hours; they cannot be approved
+once the original or proposed meeting has started. A confirmed recurring occurrence
+is replaced individually; the other occurrences remain unchanged.

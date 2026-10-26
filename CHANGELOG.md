@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Customers can propose a new time for a confirmed appointment. The current
+  reservation remains confirmed until professional approval atomically creates
+  its replacement, cancels the original and transfers customer access. Conflicts
+  roll back the complete operation; rejected proposals preserve the original.
+
 - Customer access survives reload with a 30-day HttpOnly, booking-scoped cookie.
   Customers can revoke browser access or generate a 30-minute, one-use link to
   continue on another device. No capability is stored in localStorage.

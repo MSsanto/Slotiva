@@ -1014,3 +1014,186 @@ describe("date-specific hours", () => {
     ).toBe(409);
   });
 });
+
+describe("confirmed appointment changes", () => {
+  async function original() {
+    const response = await request("/api/bookings", "POST", payload());
+    const b = (await response.json()) as { id: string; version: number };
+    const Cookie = response.headers.get("Set-Cookie")!.split(";")[0],
+      headers = await admin();
+    expect(
+      (
+        await request(
+          `/api/admin/bookings/${b.id}/approve`,
+          "POST",
+          { version: b.version },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
+    return { b, Cookie, headers };
+  }
+  it("retains the original until approval, then atomically replaces it and transfers customer access", async () => {
+    const { b, Cookie, headers } = await original();
+    const proposed = await request(
+      `/api/bookings/${b.id}/change`,
+      "POST",
+      { date: day(), time: "11:00" },
+      { ...origin, Cookie },
+    );
+    expect(proposed.status).toBe(201);
+    const c = (await proposed.json()) as { id: string; version: number };
+    expect(
+      await db
+        .prepare("SELECT status,start_min FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first(),
+    ).toMatchObject({ status: "confirmed", start_min: 540 });
+    const url = `/api/admin/booking-changes/${c.id}/approve`;
+    const accepted = await request(
+      url,
+      "POST",
+      { version: c.version },
+      headers,
+    );
+    expect(accepted.status).toBe(200);
+    const result = (await accepted.json()) as { replacement_id: string };
+    expect(
+      (await request(url, "POST", { version: c.version }, headers)).status,
+    ).toBe(200);
+    expect(
+      await db
+        .prepare("SELECT status FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first(),
+    ).toMatchObject({ status: "cancelled" });
+    const replacement = await request(
+      `/api/bookings/${result.replacement_id}`,
+      "GET",
+      undefined,
+      { Cookie },
+    );
+    expect(replacement.status).toBe(200);
+    expect(await replacement.json()).toMatchObject({
+      status: "confirmed",
+      time: "11:00",
+      serviceName: "Consultoria individual",
+    });
+    expect(
+      await db.prepare("SELECT count(*) AS n FROM bookings").first(),
+    ).toMatchObject({ n: 2 });
+  });
+  it("rolls back the entire approval if another reservation occupies the proposed time", async () => {
+    const { b, Cookie, headers } = await original();
+    const c = (await (
+      await request(
+        `/api/bookings/${b.id}/change`,
+        "POST",
+        { date: day(), time: "11:00" },
+        { ...origin, Cookie },
+      )
+    ).json()) as { id: string; version: number };
+    expect(
+      (await request("/api/bookings", "POST", payload("11:00"))).status,
+    ).toBe(201);
+    expect(
+      (
+        await request(
+          `/api/admin/booking-changes/${c.id}/approve`,
+          "POST",
+          { version: c.version },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      await db
+        .prepare("SELECT status,version FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first(),
+    ).toMatchObject({ status: "confirmed", version: 2 });
+    expect(
+      await db
+        .prepare("SELECT state FROM booking_changes WHERE id=?")
+        .bind(c.id)
+        .first(),
+    ).toMatchObject({ state: "pending" });
+    expect(
+      await db
+        .prepare("SELECT count(*) AS n FROM booking_series WHERE id=?")
+        .bind(c.id)
+        .first(),
+    ).toMatchObject({ n: 0 });
+  });
+  it("rejects unauthorized proposals and keeps the old appointment on rejection", async () => {
+    const { b, Cookie, headers } = await original();
+    expect(
+      (
+        await request(
+          `/api/bookings/${b.id}/change`,
+          "POST",
+          { date: day(), time: "11:00" },
+          origin,
+        )
+      ).status,
+    ).toBe(404);
+    const c = (await (
+      await request(
+        `/api/bookings/${b.id}/change`,
+        "POST",
+        { date: day(), time: "11:00" },
+        { ...origin, Cookie },
+      )
+    ).json()) as { id: string; version: number };
+    expect(
+      (
+        await request(
+          `/api/admin/booking-changes/${c.id}/reject`,
+          "POST",
+          { version: c.version },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      await db
+        .prepare("SELECT status FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first(),
+    ).toMatchObject({ status: "confirmed" });
+    expect(
+      await db.prepare("SELECT count(*) AS n FROM bookings").first(),
+    ).toMatchObject({ n: 1 });
+  });
+  it("cancels pending proposals when the original is cancelled", async () => {
+    const { b, Cookie, headers } = await original();
+    const c = (await (
+      await request(
+        `/api/bookings/${b.id}/change`,
+        "POST",
+        { date: day(), time: "11:00" },
+        { ...origin, Cookie },
+      )
+    ).json()) as { id: string; version: number };
+    await request(`/api/bookings/${b.id}`, "DELETE", undefined, {
+      ...origin,
+      Cookie,
+    });
+    expect(
+      (
+        await request(
+          `/api/admin/booking-changes/${c.id}/approve`,
+          "POST",
+          { version: c.version },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      await db
+        .prepare("SELECT state FROM booking_changes WHERE id=?")
+        .bind(c.id)
+        .first(),
+    ).toMatchObject({ state: "cancelled" });
+  });
+});
