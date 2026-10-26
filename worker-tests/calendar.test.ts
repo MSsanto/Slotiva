@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, afterAll, it, expect, vi } from "vitest";
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from "jose";
 import {
   calendarScope,
+  calendarWriteScope,
   calendarFailure,
   calendarStatus,
   startCalendar,
@@ -67,7 +68,7 @@ async function grant(auth: URL, extra: Record<string, unknown> = {}) {
   return {
     id_token: id,
     refresh_token: secret,
-    scope: `openid ${calendarScope}`,
+    scope: `openid ${calendarScope} ${calendarWriteScope}`,
     token_type: "Bearer",
   };
 }
@@ -140,9 +141,11 @@ beforeEach(async () => {
 afterAll(async () => {
   await mf?.dispose();
 });
-it("requests only separate read-only consent with PKCE and offline access; configuration and role fail closed", async () => {
+it("requests separate Calendar consent with PKCE and offline access; configuration and role fail closed", async () => {
   const url = await begin();
-  expect(url.searchParams.get("scope")).toBe(`openid ${calendarScope}`);
+  expect(url.searchParams.get("scope")).toBe(
+    `openid ${calendarScope} ${calendarWriteScope}`,
+  );
   expect(url.searchParams.get("access_type")).toBe("offline");
   expect(url.searchParams.get("code_challenge_method")).toBe("S256");
   expect(url.searchParams.get("redirect_uri")).toBe(
@@ -256,10 +259,18 @@ it("rejects the wrong signed Google account without binding or storing credentia
   expect((await calendarStatus(env(), a)).state).toBe("disconnected");
 });
 it("rejects denial, expired state, missing scope, absent refresh tokens and bad nonce", async () => {
-  for (const kind of ["denied", "expired", "scope", "refresh", "nonce"]) {
+  for (const kind of [
+    "denied",
+    "expired",
+    "scope",
+    "write_scope",
+    "refresh",
+    "nonce",
+  ]) {
     const auth = await begin(),
       tokens = await grant(auth, kind === "nonce" ? { nonce: "wrong" } : {});
     if (kind === "scope") tokens.scope = "openid";
+    if (kind === "write_scope") tokens.scope = `openid ${calendarScope}`;
     if (kind === "refresh") tokens.refresh_token = "";
     if (kind === "expired")
       await db

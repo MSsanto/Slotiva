@@ -20,11 +20,14 @@ Built with React, TypeScript, Vite, Cloudflare Workers and D1.
 - Professional agenda views for Hoje, Futuros, Cancelados and Histórico, using Brasília dates.
 - Separate Google Calendar consent and manual lookup of occupied intervals.
 
-Calendar connection is still being validated in Preview. Token transport now uses
-workerd-compatible manual redirects and reports safe exchange diagnostics. External conflicts are
-not checked automatically; event creation, invitations and email delivery are
-pending. Customer self-service currently depends on a token held in browser memory
-and is lost on reload. See the [roadmap](docs/ROADMAP.md).
+Calendar synchronization creates private events for confirmed bookings, requests
+Google invitations, and propagates Slotiva cancellations. Explicit write consent
+is required, including for previously connected accounts. External conflicts are
+checked before approval and professional series creation; public availability
+still uses Slotiva's schedule. Delivery failures appear separately from booking
+status. Real Google delivery still needs Preview acceptance. Customer self-service
+currently depends on a token held in browser memory and is lost on reload.
+See the [roadmap](docs/ROADMAP.md).
 
 ## Local development
 

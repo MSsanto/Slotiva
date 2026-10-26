@@ -1,3 +1,4 @@
+import { assertGoogleFree } from "./calendar-sync";
 import { bookingService } from "./services";
 import { z } from "zod";
 import { bookingSchema, output, window } from "./booking";
@@ -75,6 +76,7 @@ export async function createSeries(
       ...window(key, data.time, duration, true),
     };
   });
+  await assertGoogleFree(env, professionalId, occurrences);
   const id = crypto.randomUUID();
   const statements = [
     env.DB.prepare(

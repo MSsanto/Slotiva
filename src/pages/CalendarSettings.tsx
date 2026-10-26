@@ -31,7 +31,7 @@ const diagnostics: Record<string, string> = {
   grant:
     "O Google não retornou todas as credenciais necessárias. Reinicie e autorize o acesso solicitado.",
   scope:
-    "A permissão de disponibilidade não foi concedida. Reinicie e marque a permissão solicitada.",
+    "As permissões de consulta e edição de eventos não foram concedidas. Reinicie e marque a permissão solicitada.",
   identity:
     "Não foi possível validar a identidade retornada pelo Google. Reinicie a conexão.",
   account: "Escolha a mesma conta Google usada no painel profissional.",
@@ -44,6 +44,7 @@ const diagnostics: Record<string, string> = {
 };
 type Connection = {
   enabled: boolean;
+  mode: "availability_only" | "event_sync";
   state: "connected" | "disconnected" | "reconnect_required";
 };
 export default function CalendarSettings() {
@@ -53,6 +54,27 @@ export default function CalendarSettings() {
     queryKey: ["admin", "calendar"],
     queryFn: () => api<Connection>("/admin/calendar"),
     retry: false,
+  });
+  const syncStatus = useQuery({
+    queryKey: ["admin", "calendar", "sync"],
+    queryFn: () =>
+      api<
+        {
+          id: string;
+          date: string;
+          start_min: number;
+          state: string;
+          last_error: string | null;
+        }[]
+      >("/admin/calendar/sync"),
+    enabled: status.data?.mode === "event_sync",
+    refetchInterval: 15000,
+  });
+  const sync = useMutation({
+    mutationFn: () => api("/admin/calendar/sync", { method: "POST" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "calendar"] });
+    },
   });
   const busy = useMutation({
     mutationFn: () =>
@@ -87,9 +109,11 @@ export default function CalendarSettings() {
         conta Google deste painel.
       </p>
       <p className="hint">
-        Nesta etapa, a consulta serve para sua conferência. Os agendamentos do
-        Slotiva ainda não consideram esses horários automaticamente, não criam
-        eventos e não enviam convites.
+        Autorize a sincronização para enviar encontros confirmados à sua agenda
+        principal e convidar o cliente por e-mail, quando informado.
+        Cancelamentos feitos no Slotiva serão enviados ao Google. Altere as
+        reservas pelo Slotiva; alterações feitas diretamente no Google não são
+        importadas.
       </p>
       {result === "failed" && (
         <p role="alert">
@@ -123,6 +147,55 @@ export default function CalendarSettings() {
                 ? "A conexão precisa ser autorizada novamente."
                 : "Google Agenda desconectada."}
           </p>
+          {status.data.state === "connected" &&
+            status.data.mode === "availability_only" && (
+              <p role="status">
+                Sua autorização atual permite apenas consulta. Autorize
+                novamente para criar eventos e enviar convites.
+              </p>
+            )}
+          {status.data.state === "connected" &&
+            status.data.mode === "event_sync" && (
+              <div>
+                <p>
+                  Sincronização habilitada. Reservas futuras já confirmadas
+                  também serão enviadas. A confirmação consulta conflitos no
+                  Google; a lista pública de horários ainda mostra a
+                  disponibilidade do Slotiva.
+                </p>
+                <button disabled={sync.isPending} onClick={() => sync.mutate()}>
+                  {sync.isPending ? "Sincronizando…" : "Sincronizar agora"}
+                </button>
+                {sync.isError && <p role="alert">{errorMessage(sync.error)}</p>}
+                {syncStatus.isError && (
+                  <p role="alert">{errorMessage(syncStatus.error)}</p>
+                )}
+                {syncStatus.data && (
+                  <ul>
+                    {syncStatus.data.map((j) => (
+                      <li key={j.id}>
+                        {j.date.split("-").reverse().join("/")} ·{" "}
+                        {String(Math.floor(j.start_min / 60)).padStart(2, "0")}:
+                        {String(j.start_min % 60).padStart(2, "0")} —{" "}
+                        {j.state === "synced"
+                          ? "Sincronizado"
+                          : j.state === "skipped"
+                            ? "Não enviado: encontro já iniciado"
+                            : j.last_error === "conflict"
+                              ? "Conflito no Google: revise o horário. A reserva continua confirmada no Slotiva."
+                              : j.last_error === "event_changed"
+                                ? "Evento alterado ou excluído no Google. Revise a reserva."
+                                : j.last_error === "connection"
+                                  ? "Autorize novamente com a conta original."
+                                  : j.state === "failed"
+                                    ? "Falha no envio. Uma nova tentativa será feita."
+                                    : "Aguardando sincronização"}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           {!status.data.enabled && (
             <p>A conexão aguarda configuração do responsável.</p>
           )}

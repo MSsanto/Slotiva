@@ -688,13 +688,20 @@ test("empty service catalog explains unavailability and prevents new requests", 
 test("Calendar panel shows limited availability, connection failures and explicit disconnection (API fixtures)", async ({
   page,
 }) => {
-  let connected = true;
+  let connected = true,
+    writeEnabled = false,
+    synced = false;
   await page.route("**/api/**", async (route) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
     if (path === "/api/admin/calendar" && request.method() === "DELETE") {
       connected = false;
       await route.fulfill({ status: 204 });
+      return;
+    }
+    if (path === "/api/admin/calendar/sync" && request.method() === "POST") {
+      synced = true;
+      await route.fulfill({ json: [] });
       return;
     }
     if (request.method() !== "GET") {
@@ -718,8 +725,18 @@ test("Calendar panel shows limited availability, connection failures and explici
       },
       "/api/admin/calendar": {
         enabled: true,
+        mode: writeEnabled ? "event_sync" : "availability_only",
         state: connected ? "connected" : "disconnected",
       },
+      "/api/admin/calendar/sync": [
+        {
+          id: "booking-fixture",
+          date: "2026-10-30",
+          start_min: 930,
+          state: synced ? "synced" : "failed",
+          last_error: synced ? null : "provider",
+        },
+      ],
       "/api/admin/calendar/busy": {
         date: "2026-10-26",
         busy: [
@@ -764,13 +781,24 @@ test("Calendar panel shows limited availability, connection failures and explici
   await page.goto("/admin?calendar=failed&calendar_reason=__proto__");
   await expect(panel.getByRole("alert")).toContainText("mesma conta do painel");
   await expect(panel.getByRole("alert")).not.toContainText("__proto__");
-  await expect(panel).toContainText("não criam eventos e não enviam convites");
+  await expect(panel).toContainText(
+    "Sua autorização atual permite apenas consulta",
+  );
+  await expect(
+    panel.getByRole("button", { name: "Sincronizar agora" }),
+  ).toHaveCount(0);
   await panel.getByLabel("Data para consultar no Google").fill("2026-10-26");
   await panel
     .getByRole("button", { name: "Consultar horários ocupados" })
     .click();
   await expect(panel).toContainText("26/10/2026");
   await expect(panel).toContainText("09:00");
+  writeEnabled = true;
+  await page.goto("/admin");
+  await expect(panel).toContainText("Sincronização habilitada");
+  await expect(panel).toContainText("Falha no envio");
+  await panel.getByRole("button", { name: "Sincronizar agora" }).click();
+  await expect(panel).toContainText("Sincronizado");
   page.once("dialog", (dialog) => dialog.dismiss());
   await panel
     .getByRole("button", { name: "Desconectar Google Agenda", exact: true })
