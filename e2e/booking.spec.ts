@@ -1123,33 +1123,75 @@ test("public booking remains usable with keyboard at a narrow mobile width", asy
   expect(accessibility.violations).toEqual([]);
 });
 
-
-test("professional replaces a future recurring agreement through the editor",async({page})=>{
- test.setTimeout(60000);
- await page.goto("/admin");
- await page.getByLabel("Senha administrativa").fill("test-password-long");
- await page.getByRole("button",{name:"Entrar",exact:true}).click();
- await expect(page.getByRole("heading",{name:"Minha agenda"})).toBeVisible();
- const calendar=await (await page.request.get("/api/calendar")).json();
- const day=new Date(calendar.today+"T12:00:00Z");day.setUTCDate(day.getUTCDate()+21);
- while([0,6].includes(day.getUTCDay()))day.setUTCDate(day.getUTCDate()+1);
- const date=day.toISOString().slice(0,10),Origin=new URL(page.url()).origin;
- const created=await page.request.post("/api/admin/series",{headers:{Origin},data:{serviceId:"discovery",serviceVersion:1,date,time:"11:00",name:"Series edit fixture",email:"series-edit@example.com",requestId:crypto.randomUUID(),frequency:"weekly",count:2}});
- expect(created.status()).toBe(201);
- const old=await created.json();
- await page.reload();
- const editor=page.getByRole("region",{name:"Edição de séries"});
- await editor.getByLabel("Série para editar").selectOption(old.id);
- await editor.getByLabel("Novo horário da série").fill("14:00");
- await editor.getByLabel("Quantidade futura de encontros").fill("3");
- const response=page.waitForResponse(r=>r.request().method()==="PUT"&&new URL(r.url()).pathname==="/api/admin/series/"+old.id);
- page.once("dialog",dialog=>dialog.accept());
- await editor.getByRole("button",{name:"Atualizar encontros futuros",exact:true}).click();
- const savedResponse=await response;expect(savedResponse.status()).toBe(200);
- const saved=await savedResponse.json();
- await expect(editor).toContainText("3 encontros futuros atualizados");
- const rows=await (await page.request.get("/api/admin/bookings")).json();
- expect(rows.filter((b:{seriesId:string;status:string})=>b.seriesId===old.id&&b.status==="cancelled")).toHaveLength(2);
- expect(rows.filter((b:{seriesId:string;status:string})=>b.seriesId===saved.id&&b.status==="confirmed")).toHaveLength(3);
- expect((await page.request.delete("/api/admin/series/"+saved.id+"?scope=all",{headers:{Origin}})).status()).toBe(204);
+test("professional replaces a future recurring agreement through the editor", async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await page.goto("/admin");
+  await page.getByLabel("Senha administrativa").fill("test-password-long");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Minha agenda" }),
+  ).toBeVisible();
+  const calendar = await (await page.request.get("/api/calendar")).json();
+  const day = new Date(calendar.today + "T12:00:00Z");
+  day.setUTCDate(day.getUTCDate() + 21);
+  while ([0, 6].includes(day.getUTCDay())) day.setUTCDate(day.getUTCDate() + 1);
+  const date = day.toISOString().slice(0, 10),
+    Origin = new URL(page.url()).origin;
+  const created = await page.request.post("/api/admin/series", {
+    headers: { Origin },
+    data: {
+      serviceId: "discovery",
+      serviceVersion: 1,
+      date,
+      time: "11:00",
+      name: "Series edit fixture",
+      email: "series-edit@example.com",
+      requestId: crypto.randomUUID(),
+      frequency: "weekly",
+      count: 2,
+    },
+  });
+  expect(created.status()).toBe(201);
+  const old = await created.json();
+  await page.reload();
+  const editor = page.getByRole("region", { name: "Edição de séries" });
+  await editor.getByLabel("Série para editar").selectOption(old.id);
+  await editor.getByLabel("Novo horário da série").fill("14:00");
+  await editor.getByLabel("Quantidade futura de encontros").fill("3");
+  const response = page.waitForResponse(
+    (r) =>
+      r.request().method() === "PUT" &&
+      new URL(r.url()).pathname === "/api/admin/series/" + old.id,
+  );
+  page.once("dialog", (dialog) => dialog.accept());
+  await editor
+    .getByRole("button", { name: "Atualizar encontros futuros", exact: true })
+    .click();
+  const savedResponse = await response;
+  expect(savedResponse.status()).toBe(200);
+  const saved = await savedResponse.json();
+  await expect(editor).toContainText("3 encontros futuros atualizados");
+  const rows = await (await page.request.get("/api/admin/bookings")).json();
+  expect(
+    rows.filter(
+      (b: { seriesId: string; status: string }) =>
+        b.seriesId === old.id && b.status === "cancelled",
+    ),
+  ).toHaveLength(2);
+  expect(
+    rows.filter(
+      (b: { seriesId: string; status: string }) =>
+        b.seriesId === saved.id && b.status === "confirmed",
+    ),
+  ).toHaveLength(3);
+  expect(
+    (
+      await page.request.delete(
+        "/api/admin/series/" + saved.id + "?scope=all",
+        { headers: { Origin } },
+      )
+    ).status(),
+  ).toBe(204);
 });

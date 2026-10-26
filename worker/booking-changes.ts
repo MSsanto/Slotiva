@@ -79,11 +79,19 @@ export async function decideChange(
     "SELECT booking_id,starts_at,start_min,end_min FROM booking_changes WHERE id=? AND professional_id=? AND state='pending' AND version=? AND expires_at>unixepoch()",
   )
     .bind(id, owner, version)
-    .first<{ booking_id: string; starts_at: number; start_min: number; end_min: number }>();
+    .first<{
+      booking_id: string;
+      starts_at: number;
+      start_min: number;
+      end_min: number;
+    }>();
   if (c && action === "approve")
-    await assertGoogleFreeForReplacement(env, owner, [
-      { startsAt: c.starts_at, start: c.start_min, end: c.end_min },
-    ], [c.booking_id]);
+    await assertGoogleFreeForReplacement(
+      env,
+      owner,
+      [{ startsAt: c.starts_at, start: c.start_min, end: c.end_min }],
+      [c.booking_id],
+    );
   const state = action === "approve" ? "approved" : "rejected";
   const row = await env.DB.prepare(
     "UPDATE booking_changes SET state=?,version=version+1,actor=? WHERE id=? AND professional_id=? AND state='pending' AND version=? AND expires_at>unixepoch() RETURNING id,state,replacement_id,version",

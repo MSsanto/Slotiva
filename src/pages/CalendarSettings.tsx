@@ -76,9 +76,11 @@ export default function CalendarSettings() {
       void client.invalidateQueries({ queryKey: ["admin", "calendar"] });
     },
   });
-  const reconcile=useMutation({
-    mutationFn:()=>api("/admin/calendar/reconcile",{method:"POST"}),
-    onSuccess:()=>{void client.invalidateQueries({queryKey:["admin","calendar"]});},
+  const reconcile = useMutation({
+    mutationFn: () => api("/admin/calendar/reconcile", { method: "POST" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "calendar"] });
+    },
   });
   const busy = useMutation({
     mutationFn: () =>
@@ -170,9 +172,20 @@ export default function CalendarSettings() {
                 <button disabled={sync.isPending} onClick={() => sync.mutate()}>
                   {sync.isPending ? "Sincronizando…" : "Sincronizar agora"}
                 </button>
-                <button disabled={reconcile.isPending||sync.isPending} onClick={()=>reconcile.mutate()}>Conferir alterações no Google</button>
-                <p className="hint">A conferência sinaliza eventos alterados ou excluídos diretamente no Google. Revise a reserva no Slotiva; alterações externas não são importadas automaticamente.</p>
-                {reconcile.isError&&<p role="alert">{errorMessage(reconcile.error)}</p>}
+                <button
+                  disabled={reconcile.isPending || sync.isPending}
+                  onClick={() => reconcile.mutate()}
+                >
+                  Conferir alterações no Google
+                </button>
+                <p className="hint">
+                  A conferência sinaliza eventos alterados ou excluídos
+                  diretamente no Google. Revise a reserva no Slotiva; alterações
+                  externas não são importadas automaticamente.
+                </p>
+                {reconcile.isError && (
+                  <p role="alert">{errorMessage(reconcile.error)}</p>
+                )}
                 {sync.isError && <p role="alert">{errorMessage(sync.error)}</p>}
                 {syncStatus.isError && (
                   <p role="alert">{errorMessage(syncStatus.error)}</p>

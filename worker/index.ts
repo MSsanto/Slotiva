@@ -768,11 +768,19 @@ async function route(request: Request, env: Env) {
         403,
         "Conecte usando a conta Google do profissional.",
       );
-    if(path==="/api/admin/calendar/reconcile" && method==="POST"){
-      if(principal.provider!=="google")throw new HttpError(403,"Conecte usando a conta Google do profissional.");
-      await env.DB.prepare("UPDATE calendar_jobs SET state='pending',next_attempt=0 WHERE state='synced' AND booking_id IN (SELECT id FROM bookings WHERE professional_id=? AND status='confirmed' AND starts_at>unixepoch())").bind(professionalId).run();
-      await processCalendarJobs(env,professionalId);
-      return json(await calendarSyncStatus(env,professionalId));
+    if (path === "/api/admin/calendar/reconcile" && method === "POST") {
+      if (principal.provider !== "google")
+        throw new HttpError(
+          403,
+          "Conecte usando a conta Google do profissional.",
+        );
+      await env.DB.prepare(
+        "UPDATE calendar_jobs SET state='pending',next_attempt=0 WHERE state='synced' AND booking_id IN (SELECT id FROM bookings WHERE professional_id=? AND status='confirmed' AND starts_at>unixepoch())",
+      )
+        .bind(professionalId)
+        .run();
+      await processCalendarJobs(env, professionalId);
+      return json(await calendarSyncStatus(env, professionalId));
     }
     if (path === "/api/admin/calendar/sync" && method === "GET")
       return json(await calendarSyncStatus(env, professionalId));
@@ -798,14 +806,23 @@ async function route(request: Request, env: Env) {
       if (!data.success) throw new HttpError(422, "Confira a data.");
       return json(await calendarBusy(env, principal, data.data.date));
     }
-    if(path==="/api/admin/series" && method==="GET")return json(await editableSeries(env,professionalId));
+    if (path === "/api/admin/series" && method === "GET")
+      return json(await editableSeries(env, professionalId));
     if (path === "/api/admin/series" && method === "POST")
       return json(
         await createSeries(env, principal, await read(request, seriesSchema)),
         201,
       );
     const seriesMatch = path.match(/^\/api\/admin\/series\/([^/]+)$/);
-    if(seriesMatch && method==="PUT")return json(await editSeries(env,principal,seriesMatch[1],await read(request,editSeriesSchema)));
+    if (seriesMatch && method === "PUT")
+      return json(
+        await editSeries(
+          env,
+          principal,
+          seriesMatch[1],
+          await read(request, editSeriesSchema),
+        ),
+      );
     if (seriesMatch && method === "DELETE") {
       const anchors = url.searchParams.getAll("fromBookingId");
       const scopes = url.searchParams.getAll("scope");
