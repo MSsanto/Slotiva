@@ -1,4 +1,9 @@
 import {
+  assertGoogleFree,
+  processCalendarJobs,
+  calendarSyncStatus,
+} from "./calendar-sync";
+import {
   calendarStatus,
   calendarFailure,
   startCalendar,
@@ -184,7 +189,10 @@ async function route(request: Request, env: Env) {
   if (path === "/api/services" && method === "GET")
     return json(await listServices(env, professionalId));
   if (path === "/api/health" && method === "GET") {
-    await env.DB.prepare("SELECT 1 FROM calendar_connections LIMIT 1").first();
+    await env.DB.prepare(
+      "SELECT can_write FROM calendar_connections LIMIT 1",
+    ).first();
+    await env.DB.prepare("SELECT 1 FROM calendar_jobs LIMIT 1").first();
     await env.DB.prepare(
       "SELECT 1 FROM calendar_oauth_transactions LIMIT 1",
     ).first();
@@ -480,6 +488,22 @@ async function route(request: Request, env: Env) {
     professionalId = principal.professionalId!;
     if (path === "/api/admin/calendar" && method === "GET")
       return json(await calendarStatus(env, principal));
+    if (path === "/api/admin/calendar/sync" && principal.provider !== "google")
+      throw new HttpError(
+        403,
+        "Conecte usando a conta Google do profissional.",
+      );
+    if (path === "/api/admin/calendar/sync" && method === "GET")
+      return json(await calendarSyncStatus(env, professionalId));
+    if (path === "/api/admin/calendar/sync" && method === "POST") {
+      await env.DB.prepare(
+        "UPDATE calendar_jobs SET next_attempt=0 WHERE booking_id IN (SELECT id FROM bookings WHERE professional_id=?) AND state!='synced'",
+      )
+        .bind(professionalId)
+        .run();
+      await processCalendarJobs(env, professionalId);
+      return json(await calendarSyncStatus(env, professionalId));
+    }
     if (path === "/api/admin/calendar/start" && method === "POST")
       return startCalendar(request, env, principal);
     if (path === "/api/admin/calendar" && method === "DELETE") {
@@ -604,6 +628,21 @@ async function route(request: Request, env: Env) {
         request,
         z.object({ version: z.number().int().positive() }).strict(),
       );
+      if (decision[2] === "approve") {
+        const pending = await env.DB.prepare(
+          "SELECT * FROM bookings WHERE id=? AND professional_id=? AND status='pending_approval' AND version=?",
+        )
+          .bind(decision[1], professionalId, data.version)
+          .first<BookingRow>();
+        if (pending)
+          await assertGoogleFree(env, professionalId, [
+            {
+              startsAt: pending.starts_at,
+              start: pending.start_min,
+              end: pending.end_min,
+            },
+          ]);
+      }
       return json(
         output(
           await decide(
@@ -633,8 +672,13 @@ async function route(request: Request, env: Env) {
 export default {
   async scheduled(_controller: ScheduledController, env: Env) {
     await expirePending(env);
+    await processCalendarJobs(env);
   },
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx?: ExecutionContext,
+  ): Promise<Response> {
     let response: Response;
     try {
       response = await route(request, env);
@@ -706,6 +750,17 @@ export default {
       response.headers.set("Cache-Control", "no-store");
       response.headers.set("X-Content-Type-Options", "nosniff");
     }
+    if (
+      ctx &&
+      response.ok &&
+      request.method !== "GET" &&
+      new URL(request.url).pathname.startsWith("/api/")
+    )
+      ctx.waitUntil(
+        processCalendarJobs(env).catch(() =>
+          console.error("calendar sync unavailable"),
+        ),
+      );
     return response;
   },
 };

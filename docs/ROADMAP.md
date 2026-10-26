@@ -14,10 +14,12 @@
 
 ## Calendar and delivery
 
-- Resolve and validate the Google Calendar connection in Preview.
-- Check external availability before confirmation.
-- Create linked Calendar events without duplicates on retry.
-- Propagate cancellations and send invitations after event creation.
+- Validate event creation, Google invitation delivery, cancellation and reconnect
+  against real Google accounts in Preview. Code and synthetic-provider tests cover
+  these flows, including stable IDs, retries and conflicts before confirmation.
+- Reflect external busy intervals in public slot selection; confirmation already
+  checks Google when write-enabled Calendar is connected.
+- Reconcile edits made directly in Google; reservations currently change in Slotiva.
 - Deliver transactional emails and recover customer access on a new browser/device.
 
 Slotiva remains the source of truth for bookings. External delivery failures need

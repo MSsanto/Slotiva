@@ -92,10 +92,15 @@ Email or phone alone must not be treated as proof of ownership.
 
 ## Integrations
 
-Calendar authorization is separate from sign-in. The current integration reads
-primary-calendar busy intervals for manual review; it does not enforce those
-conflicts, create events or send invitations. See [Calendar](CALENDAR_CONNECTION.md).
+Calendar authorization is separate from sign-in. Free/busy and owned-event write
+scopes require explicit consent from the same Google account. Old read-only grants
+remain usable for lookup until upgraded. See [Calendar](CALENDAR_CONNECTION.md).
 
-Booking transitions write outbox records in the same transaction. There is no
-delivery consumer yet. Event synchronization needs stable event IDs, retries
-and reconciliation before the outbox can drive external delivery.
+Booking triggers atomically queue Calendar jobs for confirmations and subsequent
+cancellations. A bounded consumer uses leases, stable event IDs and version guards.
+It runs after API mutations, on the five-minute scheduled handler and through the
+professional's manual sync action. Existing future confirmations are backfilled.
+Google and D1 do not share a transaction: remote conflicts or delivery failures
+leave the booking intact and expose a separate retry state. Cancellation racing
+with an insert is compensated on a later pass. The older notification outbox still
+records intent for standalone transactional email; it is not an email sender.

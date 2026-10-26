@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Calendar event synchronization
+
+- Explicit owned-event consent; existing read-only connections require reauthorization.
+- Durable, bounded Calendar delivery for future confirmations and cancellations,
+  stable event IDs, retries, lease/version guards and visible per-booking status.
+- Private neutral events request Google invitations for the supplied attendee email.
+- Check Google conflicts before approval and professional series creation.
+- Migration 0011 backfills future confirmed reservations. Remote migrations,
+  publication and real Google invitation/cancellation acceptance remain release steps.
+
 - Splits the professional agenda into Hoje, Futuros, Cancelados and Histórico.
   Uses Brasília dates, updates at midnight and keeps past/cancelled rows read-only.
 

@@ -12,6 +12,8 @@ import { moveSchema, today } from "./booking";
 import type { JWTVerifyGetKey } from "jose";
 export const calendarScope =
   "https://www.googleapis.com/auth/calendar.freebusy";
+export const calendarWriteScope =
+  "https://www.googleapis.com/auth/calendar.events.owned";
 const callback = "/api/admin/calendar/callback";
 const unavailable = () =>
   new HttpError(
@@ -109,15 +111,15 @@ export async function calendarStatus(env: Env, p: Principal) {
     /* Configuration values never leave the server. */
   }
   const row = await env.DB.prepare(
-    "SELECT state,connected_at FROM calendar_connections WHERE professional_id=? AND subject=?",
+    "SELECT state,connected_at,can_write FROM calendar_connections WHERE professional_id=? AND subject=?",
   )
     .bind(owner, p.subject)
-    .first<{ state: string; connected_at: number }>();
+    .first<{ state: string; connected_at: number; can_write: number }>();
   return {
     enabled,
     state: row?.state ?? "disconnected",
     connectedAt: row?.connected_at ?? null,
-    mode: "availability_only",
+    mode: row?.can_write ? "event_sync" : "availability_only",
   };
 }
 export async function startCalendar(request: Request, env: Env, p: Principal) {
@@ -159,7 +161,7 @@ export async function startCalendar(request: Request, env: Env, p: Principal) {
     client_id: env.GOOGLE_CLIENT_ID!,
     redirect_uri: cfg.redirect,
     response_type: "code",
-    scope: `openid ${calendarScope}`,
+    scope: `openid ${calendarScope} ${calendarWriteScope}`,
     state,
     nonce,
     code_challenge: challenge,
@@ -344,7 +346,11 @@ export async function completeCalendar(
         })
         .parse(await response.json());
       stage = "scope";
-      if (!tokens.scope.split(" ").includes(calendarScope))
+      if (
+        ![calendarScope, calendarWriteScope].every((scope) =>
+          tokens.scope.split(" ").includes(scope),
+        )
+      )
         throw new HttpError(403, "Permissão de disponibilidade não concedida.");
       stage = "identity";
       const claims = await verifyGoogleClaims(
@@ -369,11 +375,11 @@ export async function completeCalendar(
       stage = "storage";
       const result = await env.DB.batch([
         env.DB.prepare(
-          `INSERT INTO calendar_connections(professional_id,subject,encrypted_refresh_token,generation)
-        SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM calendar_oauth_transactions WHERE state_hash=? AND consumed=1 AND expires_at>unixepoch())
+          `INSERT INTO calendar_connections(professional_id,subject,encrypted_refresh_token,generation,can_write)
+        SELECT ?,?,?,?,1 WHERE EXISTS(SELECT 1 FROM calendar_oauth_transactions WHERE state_hash=? AND consumed=1 AND expires_at>unixepoch())
         AND EXISTS(SELECT 1 FROM professionals WHERE id=? AND google_subject=? AND status='active')
         AND EXISTS(SELECT 1 FROM sessions WHERE token_hash=? AND subject=? AND professional_id=? AND role='professional' AND expires_at>unixepoch())
-        ON CONFLICT(professional_id) DO UPDATE SET subject=excluded.subject,encrypted_refresh_token=excluded.encrypted_refresh_token,generation=excluded.generation,state='connected',connected_at=unixepoch()`,
+        ON CONFLICT(professional_id) DO UPDATE SET subject=excluded.subject,encrypted_refresh_token=excluded.encrypted_refresh_token,generation=excluded.generation,state='connected',can_write=1,connected_at=unixepoch()`,
         ).bind(
           owner,
           p.subject,
@@ -463,45 +469,7 @@ export async function calendarBusy(
     }>();
   if (!row) throw new HttpError(409, "Conecte novamente sua Google Agenda.");
   try {
-    let refresh: string;
-    try {
-      refresh = await decryptCalendarToken(
-        env,
-        owner,
-        p.subject,
-        row.encrypted_refresh_token,
-      );
-    } catch {
-      await env.DB.prepare(
-        "UPDATE calendar_connections SET state='reconnect_required' WHERE professional_id=? AND generation=?",
-      )
-        .bind(owner, row.generation)
-        .run();
-      throw unavailable();
-    }
-    const response = await post(
-      "https://oauth2.googleapis.com/token",
-      new URLSearchParams({
-        client_id: env.GOOGLE_CLIENT_ID!,
-        client_secret: env.GOOGLE_CLIENT_SECRET!,
-        refresh_token: refresh,
-        grant_type: "refresh_token",
-      }),
-      fetcher,
-    );
-    if (!response.ok) {
-      const result = (await response.json().catch(() => null)) as {
-        error?: unknown;
-      } | null;
-      if (response.status === 400 && result?.error === "invalid_grant")
-        await env.DB.prepare(
-          "UPDATE calendar_connections SET state='reconnect_required' WHERE professional_id=? AND generation=?",
-        )
-          .bind(owner, row.generation)
-          .run();
-      throw unavailable();
-    }
-    const token = tokenResponse.parse(await response.json());
+    const token = await calendarAccess(env, owner, row, fetcher);
     const timeMin = `${date}T00:00:00-03:00`,
       next = new Date(`${date}T12:00:00Z`);
     next.setUTCDate(next.getUTCDate() + 1);
@@ -548,4 +516,54 @@ export async function calendarBusy(
     if (error instanceof HttpError) throw error;
     throw unavailable();
   }
+}
+
+export async function calendarAccess(
+  env: Env,
+  owner: string,
+  row: { subject: string; encrypted_refresh_token: string; generation: string },
+  fetcher: Transport = transport,
+) {
+  configuration(env);
+  let refresh: string;
+  try {
+    refresh = await decryptCalendarToken(
+      env,
+      owner,
+      row.subject,
+      row.encrypted_refresh_token,
+    );
+  } catch {
+    await env.DB.prepare(
+      "UPDATE calendar_connections SET state='reconnect_required' WHERE professional_id=? AND generation=?",
+    )
+      .bind(owner, row.generation)
+      .run();
+    throw unavailable();
+  }
+  const response = await post(
+    "https://oauth2.googleapis.com/token",
+    new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID!,
+      client_secret: env.GOOGLE_CLIENT_SECRET!,
+      refresh_token: refresh,
+      grant_type: "refresh_token",
+    }),
+    fetcher,
+  );
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as {
+      error?: unknown;
+    } | null;
+    if (response.status === 400 && result?.error === "invalid_grant")
+      await env.DB.prepare(
+        "UPDATE calendar_connections SET state='reconnect_required' WHERE professional_id=? AND generation=?",
+      )
+        .bind(owner, row.generation)
+        .run();
+    throw unavailable();
+  }
+  const token = tokenResponse.parse(await response.json());
+
+  return token;
 }

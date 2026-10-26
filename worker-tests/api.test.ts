@@ -86,6 +86,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await db.batch([
+    db.prepare("DELETE FROM calendar_jobs"),
     db.prepare("DELETE FROM notification_outbox"),
     db.prepare("DELETE FROM booking_events"),
     db.prepare("DELETE FROM occupied_slots"),
