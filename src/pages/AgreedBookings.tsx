@@ -25,7 +25,7 @@ export default function AgreedBookings() {
     },
     onSuccess: (data) => {
       setSaved(
-        `${data.bookings.length} encontro(s) confirmado(s) na agenda. Nenhum e-mail ou convite foi enviado.`,
+        `${data.bookings.length} encontro(s) confirmado(s) na agenda. Acompanhe o envio de avisos e convites nos painéis de integração.`,
       );
       setRequestId(crypto.randomUUID());
       void client.invalidateQueries({ queryKey: ["admin", "bookings"] });

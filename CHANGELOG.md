@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Clarifies that manual booking confirmation and external notice delivery are
+  separate; the receipt no longer incorrectly claims no email or invitation is sent.
+
 - Integrates the approved original logo and a transparent symbol in the home
   page, header, favicon and mobile manifest. Adds a genuine fictional-demo
   screenshot to README; no signed-in customer screen is used.
