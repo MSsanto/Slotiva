@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Splits the professional agenda into Hoje, Futuros, Cancelados and Histórico.
+  Uses Brasília dates, updates at midnight and keeps past/cancelled rows read-only.
+
 - Fixes Calendar transport failing before network I/O: workerd requires manual
   redirects instead of the unsupported error mode. Unexpected redirects are rejected.
 - Distinguishes provider request/scope errors, outages and HTTP status in safe

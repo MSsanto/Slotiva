@@ -76,6 +76,7 @@ test("request, edit, approve and cancel with a live customer receipt", async ({
     professional.getByRole("heading", { name: "Minha agenda" }),
   ).toBeVisible();
   await professional.reload();
+  await professional.getByRole("tab", { name: /^Futuros/ }).click();
   const row = professional
     .locator(".appointment")
     .filter({ hasText: "Browser Demo" });
@@ -169,6 +170,7 @@ test("professional explicitly chooses only this occurrence or all future series 
     }),
   });
   await expect(form).toBeVisible();
+  await page.getByRole("tab", { name: /^Futuros/ }).click();
   const calendar = await (await page.request.get("/api/calendar")).json();
   const d = new Date(`${calendar.today}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 21);
@@ -217,7 +219,7 @@ test("professional explicitly chooses only this occurrence or all future series 
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("Cancelado");
   await expect(rows.getByRole("button")).toHaveCount(0);
-  await page.getByRole("tab", { name: /^Agenda/ }).click();
+  await page.getByRole("tab", { name: /^Futuros/ }).click();
   await expect(rows).toHaveCount(3);
   page.once("dialog", async (dialog) => {
     await dialog.dismiss();
@@ -314,18 +316,47 @@ for (const reason of ["authorization", "__proto__"]) {
   });
 }
 
-test("agenda separates cancelled history with counts, empty states and keyboard tabs (API fixtures)", async ({
+test("agenda filters today, future, cancelled and history with Brasília midnight rollover (API fixtures)", async ({
   page,
 }) => {
+  await page.clock.install({ time: new Date("2026-10-27T02:59:40Z") });
   let writes = 0;
   const bookings = [
-    { id: "fixture-confirmed", status: "confirmed", name: "Active fixture" },
     {
-      id: "fixture-pending",
+      id: "today-confirmed",
+      status: "confirmed",
+      name: "Today fixture",
+      date: "2026-10-26",
+      time: "09:00",
+    },
+    {
+      id: "today-pending",
       status: "pending_approval",
       name: "Pending fixture",
+      date: "2026-10-26",
+      time: "17:00",
     },
-    { id: "fixture-cancelled", status: "cancelled", name: "Cancelled fixture" },
+    {
+      id: "future-confirmed",
+      status: "confirmed",
+      name: "Future fixture",
+      date: "2026-10-27",
+      time: "09:00",
+    },
+    {
+      id: "past-confirmed",
+      status: "confirmed",
+      name: "History fixture",
+      date: "2026-10-25",
+      time: "09:00",
+    },
+    {
+      id: "fixture-cancelled",
+      status: "cancelled",
+      name: "Cancelled fixture",
+      date: "2026-10-26",
+      time: "15:00",
+    },
   ].map((b) => ({
     ...b,
     serviceId: "discovery",
@@ -333,8 +364,6 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
     serviceDuration: 30,
     servicePriceMode: "free",
     servicePrice: 0,
-    date: "2026-10-30",
-    time: "15:00",
     email: "",
     version: 1,
     approvalExpiresAt: null,
@@ -377,38 +406,56 @@ test("agenda separates cancelled history with counts, empty states and keyboard 
     await route.fulfill({ json: responses[path] ?? [] });
   });
   await page.goto("/admin");
-  const agenda = page.getByRole("tab", { name: "Agenda (2)", exact: true });
+  const today = page.getByRole("tab", { name: "Hoje (2)", exact: true });
+  const future = page.getByRole("tab", { name: "Futuros (1)", exact: true });
   const cancelled = page.getByRole("tab", {
     name: "Cancelados (1)",
     exact: true,
   });
+  const history = page.getByRole("tab", { name: "Histórico (1)", exact: true });
   const panel = page.getByRole("tabpanel");
-  await expect(agenda).toHaveAttribute("aria-selected", "true");
+  await expect(today).toHaveAttribute("aria-selected", "true");
   await expect(panel.locator(".appointment")).toHaveCount(2);
+  await expect(panel).not.toContainText("Future fixture");
   await expect(panel).not.toContainText("Cancelled fixture");
-  await agenda.focus();
-  await agenda.press("ArrowRight");
+  await today.focus();
+  await today.press("ArrowRight");
+  await expect(future).toBeFocused();
+  await expect(panel).toContainText("Future fixture");
+  await future.press("ArrowRight");
   await expect(cancelled).toBeFocused();
-  await expect(cancelled).toHaveAttribute("aria-selected", "true");
-  await expect(panel.locator(".appointment")).toHaveCount(1);
   await expect(panel).toContainText("Cancelled fixture");
   await expect(panel.getByRole("button")).toHaveCount(0);
-  await cancelled.press("Home");
-  await expect(agenda).toBeFocused();
-  await expect(panel).toContainText("Pending fixture");
-  await agenda.press("End");
-  await expect(cancelled).toBeFocused();
-  await cancelled.press("ArrowRight");
-  await expect(agenda).toBeFocused();
+  await cancelled.press("End");
+  await expect(history).toBeFocused();
+  await expect(panel).toContainText("History fixture");
+  await expect(panel.getByRole("button")).toHaveCount(0);
+  await history.press("ArrowRight");
+  await expect(today).toBeFocused();
+  await today.press("ArrowLeft");
+  await expect(history).toBeFocused();
+  await history.press("Home");
+  await expect(today).toBeFocused();
+  const axe = await new AxeBuilder({ page }).include(".booking-tabs").analyze();
+  expect(axe.violations).toEqual([]);
+  await page.clock.fastForward(30000);
+  await expect(
+    page.getByRole("tab", { name: "Hoje (1)", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(panel).toContainText("Future fixture");
+  await expect(panel).not.toContainText("Today fixture");
+  await expect(
+    page.getByRole("tab", { name: "Histórico (3)", exact: true }),
+  ).toBeVisible();
   bookings.splice(0, bookings.length);
   await page.reload();
-  await expect(page.getByRole("tabpanel")).toHaveText(
-    "Nenhuma reserva nesta aba.",
-  );
+  await expect(panel).toHaveText("Nenhum agendamento para hoje.");
+  await page.getByRole("tab", { name: "Futuros (0)", exact: true }).click();
+  await expect(panel).toHaveText("Nenhum agendamento futuro.");
   await page.getByRole("tab", { name: "Cancelados (0)", exact: true }).click();
-  await expect(page.getByRole("tabpanel")).toHaveText(
-    "Nenhuma reserva cancelada.",
-  );
+  await expect(panel).toHaveText("Nenhuma reserva cancelada.");
+  await page.getByRole("tab", { name: "Histórico (0)", exact: true }).click();
+  await expect(panel).toHaveText("Nenhum agendamento anterior.");
   expect(writes).toBe(0);
 });
 
@@ -611,6 +658,7 @@ test("professional edits service duration and price visibility while existing bo
   await expect(agreed.getByRole("status")).toContainText(
     "1 encontro(s) confirmado(s)",
   );
+  await page.getByRole("tab", { name: /^Futuros/ }).click();
   const booked = page
     .locator(".appointment")
     .filter({ hasText: "Flexible duration fixture" });
