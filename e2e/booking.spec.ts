@@ -1109,11 +1109,11 @@ test("public booking remains usable with keyboard at a narrow mobile width", asy
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  const service = page.locator(".service").first();
+  const service = page.getByRole("radio").nth(1);
   await expect(service).toBeVisible();
   await service.focus();
   await service.press("Space");
-  await expect(service).toHaveAttribute("aria-pressed", "true");
+  await expect(service).toBeChecked();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
