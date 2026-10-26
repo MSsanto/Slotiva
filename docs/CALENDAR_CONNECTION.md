@@ -6,7 +6,7 @@ cancellations. Old grants remain read-only until the professional authorizes aga
 The panel also queries occupied intervals for today through +14 days.
 
 Approval and professional series creation check Google availability. The public
-slot list still uses Slotiva occupancy. Changes made directly in Google are not
+slot list also excludes Google busy intervals, including the appointment buffer. Changes made directly in Google are not
 imported: manage reservations in Slotiva.
 
 ## Implementation

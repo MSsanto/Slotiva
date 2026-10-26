@@ -249,7 +249,7 @@ confirmation means the linked event exists. Google notification delivery to the
 recipient is not separately acknowledged. The older notification outbox is not
 consumed for standalone email. Approval and professional series creation query
 Google availability when write access is connected. Conflicts return 409; provider
-failure returns 503. Public availability remains based on Slotiva occupancy.
+failure returns 503. Public availability excludes Google busy intervals too.
 See [Calendar connection](CALENDAR_CONNECTION.md) for encryption, races, setup and limitations.
 
 ## Calendar callback diagnostics
@@ -310,3 +310,26 @@ and exchange_redirect_blocked. Failed HTTP exchanges append calendar_http
 (300–599); arbitrary query values are not displayed. Network failures have no
 provider HTTP status. Redirects are returned manually and rejected rather than
 followed, including refresh and free/busy requests.
+
+## Customer browser access and date exceptions
+
+New public booking responses set `slotiva_customer` with HttpOnly, SameSite=Lax,
+Secure outside local development, Path=/api and a 30-day lifetime. D1 grants scope
+that opaque session to individual bookings. Existing X-Cancel-Token access remains
+supported. Cookie-authorized mutations require the exact Origin.
+
+| Route | Contract |
+| --- | --- |
+| GET /api/customer/bookings?slug=SLUG | Accessible bookings for that professional; no capability tokens; empty when no valid grants |
+| DELETE /api/customer/session | Same-origin; revoke all current browser grants and clear cookie |
+| POST /api/bookings/:id/access | Authorized customer, same-origin; returns a one-use fragment URL and expiresIn=1800 |
+| POST /api/customer/access | Same-origin `{token}`; atomically redeem a live link, set cookie, return bookingId; expired/replayed links return 404 |
+| GET /api/admin/date-hours | Own future date exceptions |
+| PUT /api/admin/date-hours | `{date,opens,closes,enabled,version}`; version 0 creates, otherwise guarded update |
+| DELETE /api/admin/date-hours | `{date,version}`; restore weekly hours only when existing bookings still fit |
+
+Date exceptions replace weekly hours for that date, including closed dates and
+normally closed weekdays. SQL guards apply to public requests, professional series
+and booking updates. A conflicting exception returns 409 and preserves existing
+reservations. Public slot selection now excludes Google busy intervals, including
+the Slotiva buffer. Provider failure never implies an available external interval.

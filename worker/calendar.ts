@@ -427,7 +427,7 @@ const tokenResponse = z.object({
   access_token: z.string().min(1).max(8192),
   token_type: z.literal("Bearer"),
 });
-const busyResponse = z.object({
+export const busyResponse = z.object({
   calendars: z.record(
     z.string(),
     z.object({

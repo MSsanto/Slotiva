@@ -86,11 +86,14 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await db.batch([
+    db.prepare("DELETE FROM customer_links"),
+    db.prepare("DELETE FROM customer_grants"),
     db.prepare("DELETE FROM calendar_jobs"),
     db.prepare("DELETE FROM notification_outbox"),
     db.prepare("DELETE FROM booking_events"),
     db.prepare("DELETE FROM occupied_slots"),
     db.prepare("DELETE FROM bookings"),
+    db.prepare("DELETE FROM date_hours"),
     db.prepare("DELETE FROM sessions"),
     db.prepare("DELETE FROM login_attempts"),
     db.prepare(
@@ -795,5 +798,219 @@ describe("migration and scheduled expiry", () => {
     ).toBe("expired");
     expect(await counts("occupied_slots")).toBe(0);
     expect(await counts("notification_outbox")).toBe(1);
+  });
+});
+
+describe("customer browser access", () => {
+  it("restores only granted bookings after reload and revokes the browser session", async () => {
+    const created = await request("/api/bookings", "POST", payload());
+    const receipt = (await created.json()) as {
+      id: string;
+      cancelToken: string;
+    };
+    const setCookie = created.headers.get("Set-Cookie")!;
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie).toContain("Path=/api");
+    const Cookie = setCookie.split(";")[0];
+    expect((await request(`/api/bookings/${receipt.id}`)).status).toBe(404);
+    const saved = (await (
+      await request("/api/customer/bookings?slug=demo", "GET", undefined, {
+        Cookie,
+      })
+    ).json()) as { id: string; cancelToken?: string }[];
+    expect(saved.map((b) => b.id)).toEqual([receipt.id]);
+    expect(saved[0].cancelToken).toBeUndefined();
+    const other = (await (
+      await request("/api/bookings", "POST", payload("11:00"))
+    ).json()) as { id: string };
+    expect(
+      (await request(`/api/bookings/${other.id}`, "GET", undefined, { Cookie }))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await request(`/api/bookings/${receipt.id}`, "DELETE", undefined, {
+          Cookie,
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request("/api/customer/session", "DELETE", undefined, {
+          Cookie,
+          ...origin,
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await request(`/api/bookings/${receipt.id}`, "GET", undefined, {
+          Cookie,
+        })
+      ).status,
+    ).toBe(404);
+  });
+  it("redeems a short-lived link once into a separate booking-scoped browser session", async () => {
+    const created = await request("/api/bookings", "POST", payload());
+    const b = (await created.json()) as { id: string };
+    const Cookie = created.headers.get("Set-Cookie")!.split(";")[0];
+    const link = (await (
+      await request(`/api/bookings/${b.id}/access`, "POST", undefined, {
+        Cookie,
+        ...origin,
+      })
+    ).json()) as { url: string };
+    expect(link.url).toContain("#access=");
+    const token = new URLSearchParams(new URL(link.url).hash.slice(1)).get(
+      "access",
+    )!;
+    const redeemed = await request(
+      "/api/customer/access",
+      "POST",
+      { token },
+      origin,
+    );
+    expect(redeemed.status).toBe(200);
+    const cookie2 = redeemed.headers.get("Set-Cookie")!.split(";")[0];
+    expect(cookie2).not.toBe(Cookie);
+    expect(
+      (
+        await request(`/api/bookings/${b.id}`, "GET", undefined, {
+          Cookie: cookie2,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await request("/api/customer/access", "POST", { token }, origin)).status,
+    ).toBe(404);
+    await db
+      .prepare("UPDATE customer_grants SET expires_at=unixepoch()-1")
+      .run();
+    expect(
+      (
+        await request(`/api/bookings/${b.id}`, "GET", undefined, {
+          Cookie: cookie2,
+        })
+      ).status,
+    ).toBe(404);
+  });
+  it("refuses expired links and does not disclose another professional's receipts", async () => {
+    const r = await request("/api/bookings", "POST", payload());
+    const b = (await r.json()) as { id: string; cancelToken: string };
+    const Cookie = r.headers.get("Set-Cookie")!.split(";")[0];
+    const link = (await (
+      await request(`/api/bookings/${b.id}/access`, "POST", undefined, {
+        Cookie,
+        ...origin,
+      })
+    ).json()) as { url: string };
+    await db
+      .prepare("UPDATE customer_links SET expires_at=unixepoch()-1")
+      .run();
+    const token = new URLSearchParams(new URL(link.url).hash.slice(1)).get(
+      "access",
+    )!;
+    expect(
+      (await request("/api/customer/access", "POST", { token }, origin)).status,
+    ).toBe(404);
+    expect(
+      await (
+        await request("/api/customer/bookings?slug=foreign", "GET", undefined, {
+          Cookie,
+        })
+      ).json(),
+    ).toEqual([]);
+    expect(
+      (
+        await request(`/api/bookings/${b.id}`, "DELETE", undefined, {
+          Cookie,
+          ...origin,
+        })
+      ).status,
+    ).toBe(204);
+  });
+});
+
+describe("date-specific hours", () => {
+  it("closes a date, uses version guards and restores the weekly schedule", async () => {
+    const headers = await admin(),
+      date = day();
+    const save = (version: number, enabled = false) =>
+      request(
+        "/api/admin/date-hours",
+        "PUT",
+        { date, opens: "09:00", closes: "17:00", enabled, version },
+        headers,
+      );
+    expect((await save(0)).status).toBe(200);
+    const query = `/api/availability?date=${date}&serviceId=consulting`;
+    expect(await (await request(query)).json()).toEqual([]);
+    expect((await save(0)).status).toBe(409);
+    expect(
+      (
+        await request(
+          "/api/admin/date-hours",
+          "DELETE",
+          { date, version: 1 },
+          headers,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      ((await (await request(query)).json()) as string[]).length,
+    ).toBeGreaterThan(0);
+  });
+  it("cannot close or shorten a date that already contains a reservation", async () => {
+    await request("/api/bookings", "POST", payload());
+    const headers = await admin();
+    expect(
+      (
+        await request(
+          "/api/admin/date-hours",
+          "PUT",
+          {
+            date: day(),
+            opens: "14:00",
+            closes: "17:00",
+            enabled: true,
+            version: 0,
+          },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      await db.prepare("SELECT count(*) AS n FROM date_hours").first(),
+    ).toMatchObject({ n: 0 });
+  });
+  it("opens a normally closed weekday and protects its live reservations when removing the exception", async () => {
+    const headers = await admin(),
+      d = new Date(`${day()}T12:00:00Z`);
+    while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+    const date = d.toISOString().slice(0, 10);
+    expect(
+      (
+        await request(
+          "/api/admin/date-hours",
+          "PUT",
+          { date, opens: "09:00", closes: "17:00", enabled: true, version: 0 },
+          headers,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (await request("/api/bookings", "POST", { ...payload(), date })).status,
+    ).toBe(201);
+    expect(
+      (
+        await request(
+          "/api/admin/date-hours",
+          "DELETE",
+          { date, version: 1 },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
   });
 });

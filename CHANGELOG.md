@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Customer access survives reload with a 30-day HttpOnly, booking-scoped cookie.
+  Customers can revoke browser access or generate a 30-minute, one-use link to
+  continue on another device. No capability is stored in localStorage.
+- Public availability excludes occupied Google intervals and fails closed when
+  the connected provider is unavailable.
+- Date-specific working hours support closures and additional opening dates,
+  with SQL constraints preserving existing reservations.
+
 - Adds month selection to Futuros, with a monthly count and the total across
   future months. The initial month contains the next reservation.
 - Preview acceptance confirmed Google event creation, recipient invitations and

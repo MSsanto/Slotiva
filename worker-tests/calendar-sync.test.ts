@@ -13,6 +13,7 @@ import {
   processCalendarJobs,
   assertGoogleFree,
   calendarSyncStatus,
+  filterGoogleSlots,
 } from "../worker/calendar-sync";
 import { encryptCalendarToken, calendarStatus } from "../worker/calendar";
 import { createSeries } from "../worker/recurrence";
@@ -493,4 +494,41 @@ it("cancels only the selected occurrence of a synchronized series", async () => 
       .bind(series.bookings[1].id)
       .first(),
   ).toMatchObject({ status: "confirmed" });
+});
+
+it("filters public slots using Google occupancy and the scheduling buffer, including read-only grants", async () => {
+  const row = await db
+    .prepare("SELECT date,starts_at FROM bookings WHERE id=?")
+    .bind(id)
+    .first<{ date: string; starts_at: number }>();
+  busy = [
+    {
+      start: new Date(row!.starts_at * 1000).toISOString(),
+      end: new Date((row!.starts_at + 3600) * 1000).toISOString(),
+    },
+  ];
+  await db.prepare("UPDATE calendar_connections SET can_write=0").run();
+  expect(
+    await filterGoogleSlots(
+      env(),
+      "sync-a",
+      row!.date,
+      ["09:00", "10:00", "11:00", "12:00"],
+      60,
+      provider,
+    ),
+  ).toEqual(["11:00", "12:00"]);
+  await expect(
+    filterGoogleSlots(
+      env(),
+      "sync-a",
+      row!.date,
+      ["09:00"],
+      60,
+      async (input, init) =>
+        String(input).includes("oauth2")
+          ? provider(input, init)
+          : new Response(null, { status: 503 }),
+    ),
+  ).rejects.toThrow("agenda externa");
 });
