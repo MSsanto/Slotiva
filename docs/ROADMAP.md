@@ -35,6 +35,9 @@ is separate from preserving the current browser session after reload.
 
 ## Implemented — awaiting Preview rollout
 
+- Master restoration of deleted professional profiles, preserving original
+  identity and cancelled history. Apply migration 0010 and validate restoration.
+
 - Optional professional WhatsApp contact, with an explicit visibility toggle,
   neutral message and no booking/customer data in the link. Apply migration 0009
   and check the published Preview before marking rollout complete.

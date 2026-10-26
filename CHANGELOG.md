@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Adds deleted-profile listing and restoration for the master. Original identity
+  and history are retained; cancelled bookings and revoked sessions stay unchanged.
+- Adds migration 0010 for restoration lifecycle guards and audit events.
+- Resets the creation form after success and places creation errors by the submit button.
+
 - Adds optional professional WhatsApp contact settings and a public contact link
   on booking pages and receipts. Hidden by default; uses a neutral message.
 - Adds migration 0009 for per-professional contact number and visibility.

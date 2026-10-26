@@ -20,7 +20,9 @@ rather than accepting an owner ID in an administrative payload.
 The master role manages professional accounts but cannot read their bookings.
 Suspension hides the page and revokes sessions. Removal also cancels active
 appointments and releases their intervals while retaining history. It does not
-implement personal-data erasure.
+implement personal-data erasure. The master can restore a deleted profile under
+the same identity. Cancelled bookings and revoked sessions stay unchanged;
+Calendar requires new consent and WhatsApp publication starts hidden.
 
 ## Booking rules
 

@@ -205,3 +205,23 @@ export async function saveWhatsApp(
     );
   return privateProfile(p);
 }
+
+export async function restoreProfessional(
+  env: Env,
+  id: string,
+  version: number,
+  actor: string,
+) {
+  const p = await env.DB.prepare(
+    `UPDATE professionals SET status='active',whatsapp_enabled=0,version=version+1,last_actor=?
+     WHERE id=? AND status='deleted' AND version=? RETURNING *`,
+  )
+    .bind(actor, id, version)
+    .first<Professional>();
+  if (!p)
+    throw new HttpError(
+      409,
+      "O cadastro mudou ou não está excluído. Atualize a lista.",
+    );
+  return privateProfile(p);
+}

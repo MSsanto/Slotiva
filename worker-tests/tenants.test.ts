@@ -1666,3 +1666,230 @@ describe("Professional WhatsApp contact", () => {
     ).toBe(401);
   });
 });
+
+describe("Restoring deleted professionals", () => {
+  it("restores the original identity without reviving bookings, sessions, Calendar grants or public contact", async () => {
+    const booking = (await (await publicBooking(a)).json()) as { id: string };
+    const contact = await request(
+      "/api/admin/whatsapp",
+      "PUT",
+      {
+        whatsappNumber: "5512999990000",
+        whatsappEnabled: true,
+        version: a.version,
+      },
+      authA,
+    );
+    const configured = (await contact.json()) as { version: number };
+    await db
+      .prepare(
+        "INSERT INTO calendar_connections(professional_id,subject,encrypted_refresh_token,generation) VALUES(?,?,?,?)",
+      )
+      .bind(a.id, a.slug, "fictional-encrypted-grant", "fixture-generation")
+      .run();
+    expect(
+      (
+        await request(
+          `/api/master/professionals/${a.id}`,
+          "DELETE",
+          { version: configured.version },
+          master,
+        )
+      ).status,
+    ).toBe(204);
+    const deletedVersion = configured.version + 1;
+    const deleted = (await (
+      await request(
+        "/api/master/professionals?status=deleted",
+        "GET",
+        undefined,
+        master,
+      )
+    ).json()) as Profile[];
+    expect(deleted.map((p) => p.id)).toContain(a.id);
+    expect(deleted.map((p) => p.id)).not.toContain(b.id);
+    const active = (await (
+      await request("/api/master/professionals", "GET", undefined, master)
+    ).json()) as Profile[];
+    expect(active.map((p) => p.id)).not.toContain(a.id);
+    expect((await request(`/api/public/${a.slug}/profile`)).status).toBe(404);
+    const restored = await request(
+      `/api/master/professionals/${a.id}/restore`,
+      "POST",
+      { version: deletedVersion },
+      master,
+    );
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toMatchObject({
+      id: a.id,
+      slug: a.slug,
+      invitedEmail: `${a.slug}@gmail.com`,
+      googleSubject: a.slug,
+      status: "active",
+      version: deletedVersion + 1,
+      whatsappNumber: "5512999990000",
+      whatsappEnabled: false,
+    });
+    expect(
+      await (await request(`/api/public/${a.slug}/profile`)).json(),
+    ).toMatchObject({ whatsappNumber: null });
+    expect(
+      (await request("/api/admin/bookings", "GET", undefined, authA)).status,
+    ).toBe(401);
+    expect(
+      await db
+        .prepare("SELECT status FROM bookings WHERE id=?")
+        .bind(booking.id)
+        .first("status"),
+    ).toBe("cancelled");
+    expect(
+      await db
+        .prepare("SELECT count(*) n FROM occupied_slots WHERE booking_id=?")
+        .bind(booking.id)
+        .first("n"),
+    ).toBe(0);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM calendar_connections WHERE professional_id=?",
+        )
+        .bind(a.id)
+        .first("n"),
+    ).toBe(0);
+    expect(
+      await db
+        .prepare("SELECT count(*) n FROM sessions WHERE professional_id=?")
+        .bind(a.id)
+        .first("n"),
+    ).toBe(0);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) n FROM professional_events WHERE professional_id=? AND action='restored' AND actor_subject='master-1'",
+        )
+        .bind(a.id)
+        .first("n"),
+    ).toBe(1);
+    expect(
+      (
+        await request(
+          `/api/master/professionals/${a.id}/restore`,
+          "POST",
+          { version: deletedVersion },
+          master,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(
+          "/api/master/professionals",
+          "POST",
+          profileData(a.slug),
+          master,
+        )
+      ).status,
+    ).toBe(409);
+    await expect(
+      authorizeGoogleAccount(
+        { DB: db, MASTER_GOOGLE_SUBS: "master-1" } as Env,
+        { sub: a.slug },
+      ),
+    ).resolves.toMatchObject({ professionalId: a.id, role: "professional" });
+    const fresh = await session(a.slug, a.id);
+    expect(
+      (await request("/api/admin/bookings", "GET", undefined, fresh)).status,
+    ).toBe(200);
+  });
+
+  it("restricts deleted listings and restoration to master, checks versions and preserves identity in SQL", async () => {
+    expect(
+      (await request("/api/master/professionals?status=deleted")).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(
+          "/api/master/professionals?status=deleted",
+          "GET",
+          undefined,
+          authB,
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(
+          "/api/master/professionals?status=unknown",
+          "GET",
+          undefined,
+          master,
+        )
+      ).status,
+    ).toBe(422);
+    const path = `/api/master/professionals/${a.id}/restore`;
+    expect((await request(path, "POST", { version: 1 }, master)).status).toBe(
+      409,
+    );
+    await request(
+      `/api/master/professionals/${a.id}`,
+      "DELETE",
+      { version: 1 },
+      master,
+    );
+    expect((await request(path, "POST", { version: 2 })).status).toBe(401);
+    expect((await request(path, "POST", { version: 2 }, authB)).status).toBe(
+      403,
+    );
+    expect(
+      (
+        await request(
+          path,
+          "POST",
+          { version: 2 },
+          { ...master, Origin: "https://other.example" },
+        )
+      ).status,
+    ).toBe(403);
+    expect((await request(path, "POST", { version: 1 }, master)).status).toBe(
+      409,
+    );
+    expect(
+      (
+        await request(
+          path,
+          "POST",
+          { version: 2, googleSubject: "replacement" },
+          master,
+        )
+      ).status,
+    ).toBe(422);
+    await expect(
+      db
+        .prepare(
+          "UPDATE professionals SET status='active',google_subject='replacement',version=version+1 WHERE id=?",
+        )
+        .bind(a.id)
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .prepare(
+          "UPDATE professionals SET header_title='replacement',version=version+1 WHERE id=?",
+        )
+        .bind(a.id)
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      db.prepare("DELETE FROM professionals WHERE id=?").bind(a.id).run(),
+    ).rejects.toThrow();
+    expect(
+      await db
+        .prepare("SELECT status FROM professionals WHERE id=?")
+        .bind(a.id)
+        .first("status"),
+    ).toBe("deleted");
+    expect(
+      await (await request(`/api/public/${b.slug}/profile`)).json(),
+    ).toMatchObject({ slug: b.slug });
+  });
+});
