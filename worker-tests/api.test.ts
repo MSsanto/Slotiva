@@ -93,6 +93,7 @@ beforeEach(async () => {
     db.prepare("DELETE FROM booking_events"),
     db.prepare("DELETE FROM occupied_slots"),
     db.prepare("DELETE FROM bookings"),
+    db.prepare("DELETE FROM clients"),
     db.prepare("DELETE FROM date_hours"),
     db.prepare("DELETE FROM sessions"),
     db.prepare("DELETE FROM login_attempts"),
@@ -1195,5 +1196,195 @@ describe("confirmed appointment changes", () => {
         .bind(c.id)
         .first(),
     ).toMatchObject({ state: "cancelled" });
+  });
+});
+
+describe("client records and privacy requests", () => {
+  it("keeps shared email contacts separate and exports no booking credentials", async () => {
+    const first = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string };
+    const second = (await (
+      await request("/api/bookings", "POST", {
+        ...payload("11:00"),
+        name: "Another client",
+      })
+    ).json()) as { id: string };
+    const headers = await admin();
+    const clients = (await (
+      await request("/api/admin/clients", "GET", undefined, headers)
+    ).json()) as {
+      id: string;
+      sharedEmail: boolean;
+      emailVerifiedAt: number | null;
+    }[];
+    expect(clients).toHaveLength(2);
+    expect(clients.every((c) => c.sharedEmail)).toBe(true);
+    expect(clients.every((c) => c.emailVerifiedAt === null)).toBe(true);
+    expect(new Set(clients.map((c) => c.id))).toEqual(
+      new Set([first.id, second.id]),
+    );
+    const exported = (await (
+      await request(
+        `/api/admin/clients/${first.id}/export`,
+        "GET",
+        undefined,
+        headers,
+      )
+    ).json()) as { bookings: { id: string }[] };
+    expect(exported.bookings.map((b) => b.id)).toEqual([first.id]);
+    expect(JSON.stringify(exported)).not.toContain("cancel_hash");
+    expect(JSON.stringify(exported)).not.toContain("cancelToken");
+  });
+  it("guards edits, archives records without cancelling reservations and blocks deletion of history", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string };
+    const headers = await admin();
+    const update = {
+      name: "Updated contact",
+      email: "updated@example.com",
+      phone: "+5511999999999",
+      archived: true,
+      version: 1,
+    };
+    expect(
+      (await request(`/api/admin/clients/${b.id}`, "PUT", update, headers))
+        .status,
+    ).toBe(204);
+    expect(
+      (await request(`/api/admin/clients/${b.id}`, "PUT", update, headers))
+        .status,
+    ).toBe(409);
+    expect(
+      (
+        await request(
+          `/api/admin/clients/${b.id}`,
+          "DELETE",
+          { version: 2 },
+          headers,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      await (
+        await request("/api/admin/clients", "GET", undefined, headers)
+      ).json(),
+    ).toEqual([]);
+    const archived = (await (
+      await request(
+        "/api/admin/clients?archived=true",
+        "GET",
+        undefined,
+        headers,
+      )
+    ).json()) as { name: string }[];
+    expect(archived[0].name).toBe("Updated contact");
+    expect(
+      await db
+        .prepare("SELECT name,email,status FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first(),
+    ).toMatchObject({
+      name: "Demo",
+      email: "demo@example.com",
+      status: "pending_approval",
+    });
+  });
+  it("scopes customer exports and records one open privacy request without cancelling the booking", async () => {
+    const r = await request("/api/bookings", "POST", payload());
+    const b = (await r.json()) as { id: string };
+    const Cookie = r.headers.get("Set-Cookie")!.split(";")[0];
+    expect((await request(`/api/bookings/${b.id}/export`)).status).toBe(404);
+    expect(
+      (
+        await request(`/api/bookings/${b.id}/export`, "GET", undefined, {
+          Cookie,
+        })
+      ).status,
+    ).toBe(200);
+    for (let i = 0; i < 2; i++)
+      expect(
+        (
+          await request(
+            `/api/bookings/${b.id}/privacy`,
+            "POST",
+            { kind: "delete" },
+            { ...origin, Cookie },
+          )
+        ).status,
+      ).toBe(202);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS n FROM privacy_requests WHERE booking_id=?",
+        )
+        .bind(b.id)
+        .first(),
+    ).toEqual({ n: 1 });
+    expect(
+      await db
+        .prepare("SELECT status FROM bookings WHERE id=?")
+        .bind(b.id)
+        .first(),
+    ).toEqual({ status: "pending_approval" });
+    const headers = await admin(),
+      pending = (await (
+        await request("/api/admin/privacy", "GET", undefined, headers)
+      ).json()) as { id: string; version: number }[];
+    expect(
+      (
+        await request(
+          `/api/admin/privacy/${pending[0].id}`,
+          "PUT",
+          { version: pending[0].version, state: "reviewing" },
+          headers,
+        )
+      ).status,
+    ).toBe(204);
+  });
+  it("rejects cross-professional exports and client assignments", async () => {
+    const b = (await (
+      await request("/api/bookings", "POST", payload())
+    ).json()) as { id: string };
+    const headers = await admin();
+    await db
+      .prepare(
+        "INSERT INTO professionals(id,slug,display_name,header_title) VALUES('client-other','client-other','Fixture','Fixture') ON CONFLICT DO NOTHING",
+      )
+      .run();
+    const foreign = crypto.randomUUID();
+    await db
+      .prepare(
+        "INSERT INTO clients(id,professional_id,name,email) VALUES(?,'client-other','Other','other@example.com')",
+      )
+      .bind(foreign)
+      .run();
+    expect(
+      (
+        await request(
+          `/api/admin/clients/${foreign}/export`,
+          "GET",
+          undefined,
+          headers,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await request(
+          `/api/admin/clients/${foreign}/assign`,
+          "POST",
+          { bookingId: b.id, version: 1 },
+          headers,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      await db
+        .prepare("SELECT client_id FROM booking_clients WHERE booking_id=?")
+        .bind(b.id)
+        .first(),
+    ).toEqual({ client_id: b.id });
   });
 });

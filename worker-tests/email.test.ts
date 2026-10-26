@@ -1,3 +1,4 @@
+import { listClients } from "../worker/clients";
 import { readFile, readdir } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { beforeAll, beforeEach, afterAll, it, expect, vi } from "vitest";
@@ -174,6 +175,18 @@ it("keeps recovery responses generic and redeems the emailed link only once", as
       .bind(id)
       .first(),
   ).toEqual({ booking_id: id });
+  const contacts = await listClients(env(), "mail-a", "", false);
+  expect(contacts.find((c) => c.id === id)?.emailVerifiedAt).not.toBeNull();
+  await db
+    .prepare(
+      "UPDATE clients SET email='changed@example.com',version=version+1 WHERE id=?",
+    )
+    .bind(id)
+    .run();
+  expect(
+    (await listClients(env(), "mail-a", "", false)).find((c) => c.id === id)
+      ?.emailVerifiedAt,
+  ).toBeNull();
   const cookie = redeemed.headers.get("Set-Cookie")!.split(";")[0];
   expect(
     (

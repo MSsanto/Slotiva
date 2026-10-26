@@ -108,3 +108,14 @@ Google and D1 do not share a transaction: remote conflicts or delivery failures
 leave the booking intact and expose a separate retry state. Cancellation racing
 with an insert is compensated on a later pass. The older notification outbox still
 records intent for standalone transactional email; it is not an email sender.
+
+## Client contacts
+
+Public reservations keep separate client records even when addresses match.
+A professional series has an explicit shared client identity. Versioned assignment
+can consolidate known records without changing customer authorization. Mailbox
+proof belongs to an emailed-link redemption and is valid only for the current
+address of a linked booking; it is not a global account or a person-identity check.
+Archiving preserves booking history. Data exports omit capabilities, credential
+hashes and provider secrets. Deletion requests require professional review under
+the agreed retention policy; no medical retention period is assumed by the code.

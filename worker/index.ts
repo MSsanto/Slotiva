@@ -1,4 +1,14 @@
 import {
+  clientSchema,
+  listClients,
+  saveClient,
+  assignClient,
+  exportClient,
+  exportCustomerBooking,
+  requestPrivacy,
+  privacyRequests,
+} from "./clients";
+import {
   emailEnabled,
   requestRecovery,
   recoverySchema,
@@ -246,6 +256,24 @@ async function route(request: Request, env: Env) {
       return response;
     }
   }
+  const privacy = path.match(/^\/api\/bookings\/([^/]+)\/(export|privacy)$/);
+  if (privacy) {
+    if (!bookingId.safeParse(privacy[1]).success)
+      throw new HttpError(404, "Reserva não encontrada.");
+    if (privacy[2] === "export" && method === "GET")
+      return json(await exportCustomerBooking(request, env, privacy[1]));
+    if (privacy[2] === "privacy" && method === "POST") {
+      origin(request);
+      const data = await read(
+        request,
+        z.object({ kind: z.enum(["export", "delete"]) }).strict(),
+      );
+      return json(
+        await requestPrivacy(request, env, privacy[1], data.kind),
+        202,
+      );
+    }
+  }
   const customerChange = path.match(/^\/api\/bookings\/([^/]+)\/change$/);
   if (customerChange && ["GET", "POST"].includes(method)) {
     if (!bookingId.safeParse(customerChange[1]).success)
@@ -280,6 +308,7 @@ async function route(request: Request, env: Env) {
     await env.DB.prepare("SELECT 1 FROM customer_grants LIMIT 1").first();
     await env.DB.prepare("SELECT 1 FROM date_hours LIMIT 1").first();
     await env.DB.prepare("SELECT 1 FROM email_jobs LIMIT 1").first();
+    await env.DB.prepare("SELECT 1 FROM clients LIMIT 1").first();
     await env.DB.prepare(
       "SELECT 1 FROM calendar_oauth_transactions LIMIT 1",
     ).first();
@@ -580,6 +609,124 @@ async function route(request: Request, env: Env) {
     }
     const principal = await requireAdmin(request, env);
     professionalId = principal.professionalId!;
+    if (path === "/api/admin/client-links" && method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT bc.booking_id,bc.client_id,bc.version FROM booking_clients bc JOIN bookings b ON b.id=bc.booking_id WHERE b.professional_id=?",
+      )
+        .bind(professionalId)
+        .all();
+      return json(rows.results);
+    }
+    if (path === "/api/admin/clients" && method === "GET") {
+      const query = z
+        .object({
+          q: z.string().max(100).default(""),
+          archived: z.enum(["true", "false"]).default("false"),
+        })
+        .strict()
+        .safeParse(Object.fromEntries(url.searchParams));
+      if (!query.success)
+        throw new HttpError(422, "Confira os filtros de clientes.");
+      return json(
+        await listClients(
+          env,
+          professionalId,
+          query.data.q,
+          query.data.archived === "true",
+        ),
+      );
+    }
+    if (path === "/api/admin/clients" && method === "POST") {
+      await saveClient(
+        env,
+        professionalId,
+        undefined,
+        await read(request, clientSchema),
+      );
+      return noContent();
+    }
+    const clientRoute = path.match(
+      /^\/api\/admin\/clients\/([^/]+)(?:\/(export|assign))?$/,
+    );
+    if (clientRoute) {
+      if (!bookingId.safeParse(clientRoute[1]).success)
+        throw new HttpError(404, "Cadastro não encontrado.");
+      if (clientRoute[2] === "export" && method === "GET")
+        return json(await exportClient(env, professionalId, clientRoute[1]));
+      if (clientRoute[2] === "assign" && method === "POST") {
+        const data = await read(
+          request,
+          z
+            .object({
+              bookingId: bookingId,
+              version: z.number().int().positive(),
+            })
+            .strict(),
+        );
+        await assignClient(
+          env,
+          professionalId,
+          clientRoute[1],
+          data.bookingId,
+          data.version,
+        );
+        return noContent();
+      }
+      if (!clientRoute[2] && method === "DELETE") {
+        const data = await read(
+          request,
+          z.object({ version: z.number().int().positive() }).strict(),
+        );
+        const result = await env.DB.prepare(
+          "DELETE FROM clients WHERE id=? AND professional_id=? AND version=? AND NOT EXISTS(SELECT 1 FROM booking_clients WHERE client_id=clients.id)",
+        )
+          .bind(clientRoute[1], professionalId, data.version)
+          .run();
+        if (!result.meta.changes)
+          throw new HttpError(
+            409,
+            "Cadastros com histórico devem ser arquivados. Atualize a lista para conferir a versão.",
+          );
+        return noContent();
+      }
+      if (!clientRoute[2] && method === "PUT") {
+        await saveClient(
+          env,
+          professionalId,
+          clientRoute[1],
+          await read(request, clientSchema),
+        );
+        return noContent();
+      }
+    }
+    if (path === "/api/admin/privacy" && method === "GET")
+      return json(await privacyRequests(env, professionalId));
+    const privacyDecision = path.match(/^\/api\/admin\/privacy\/([^/]+)$/);
+    if (privacyDecision && method === "PUT") {
+      const data = await read(
+        request,
+        z
+          .object({
+            state: z.enum(["reviewing", "closed"]),
+            version: z.number().int().positive(),
+          })
+          .strict(),
+      );
+      const result = await env.DB.prepare(
+        "UPDATE privacy_requests SET state=?,version=version+1,reviewed_by=? WHERE id=? AND professional_id=? AND version=? AND state!='closed'",
+      )
+        .bind(
+          data.state,
+          principal.subject,
+          privacyDecision[1],
+          professionalId,
+          data.version,
+        )
+        .run();
+      if (!result.meta.changes)
+        throw new HttpError(409, "O pedido mudou. Atualize a lista.");
+      return noContent();
+    }
     if (path === "/api/admin/delivery" && method === "GET")
       return json(await emailStatus(env, professionalId));
     if (path === "/api/admin/delivery/retry" && method === "POST") {

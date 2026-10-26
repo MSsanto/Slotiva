@@ -32,8 +32,11 @@ is separate from preserving the current browser session after reload.
 - Date-specific working-hour exceptions are implemented; validate closures and
   additional opening days in Preview.
 - Editing recurring agreements.
-- Client records with verified contacts and explicit handling of shared addresses.
-- Retention, export and deletion workflows.
+- Client records, explicit associations and per-booking mailbox proof are
+  implemented. Shared addresses remain separate; validate with fictional clients.
+- Scoped export, archive and deletion-request review are implemented. Agree
+  retention and external-provider erasure with the professional before enabling
+  any automatic historical-data deletion.
 
 ## Implemented — awaiting Preview rollout
 
