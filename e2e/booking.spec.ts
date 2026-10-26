@@ -580,6 +580,9 @@ test("professional edits service duration and price visibility while existing bo
     }),
   ).toBeVisible();
   await customer.reload();
+  await customer
+    .getByRole("button", { name: "Fazer outro agendamento", exact: true })
+    .click();
   card = customer
     .locator(".service")
     .filter({ hasText: "Atendimento atualizado" });
@@ -599,6 +602,9 @@ test("professional edits service duration and price visibility while existing bo
     }),
   ).toBeVisible();
   await customer.reload();
+  await customer
+    .getByRole("button", { name: "Fazer outro agendamento", exact: true })
+    .click();
   card = customer
     .locator(".service")
     .filter({ hasText: "Atendimento atualizado" });
@@ -625,6 +631,9 @@ test("professional edits service duration and price visibility while existing bo
     settings.getByText(/Atendimento atualizado.*Desativado/),
   ).toBeVisible();
   await customer.reload();
+  await customer
+    .getByRole("button", { name: "Fazer outro agendamento", exact: true })
+    .click();
   await expect(
     customer.locator(".service").filter({ hasText: "Atendimento atualizado" }),
   ).toHaveCount(0);
