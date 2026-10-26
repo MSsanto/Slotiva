@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Isolated local demo with fictional appointments, a repeatable guarded reset,
+  disabled external delivery and a dedicated local D1 configuration.
+- Backup/restore drill verifies SQLite integrity, foreign keys, schema and row
+  counts without changing the source. Adds a timeout-bounded health checker.
+- README architecture diagram and a reproducible fictional screenshot capture;
+  CI validates demo startup, restore and capture.
+
 - Optional transactional email and booking-reference recovery through Resend.
   Encrypted queues, bounded retries, stable idempotency keys, generic recovery
   responses and one-use links keep delivery separate from booking status.

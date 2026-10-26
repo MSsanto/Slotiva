@@ -26,6 +26,18 @@ jobs:
           npm run dev:api -- --ip 127.0.0.1 --var COOKIE_SECURE:false > /tmp/slotiva-api.log 2>&1 &
           for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/api/health && break || sleep 1; done
           npx playwright test
+      - name: Verify isolated demo and backup restore
+        run: |
+          npm run demo:init
+          npm run backup:drill
+          node scripts/demo.mjs --serve > /tmp/slotiva-demo.log 2>&1 &
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:8788/api/health && break || sleep 1; done
+          npm run health:check -- http://127.0.0.1:8788/api/health
+          npm run demo:capture
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fictional-demo-preview
+          path: docs/images/demo.png
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -33,3 +45,4 @@ jobs:
           path: |
             test-results/
             /tmp/slotiva-api.log
+            /tmp/slotiva-demo.log

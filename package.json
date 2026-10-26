@@ -16,7 +16,13 @@
     "db:local": "wrangler d1 migrations apply slotiva-db --local",
     "db:remote": "wrangler d1 migrations apply slotiva-db --remote",
     "admin:hash": "node scripts/admin-hash.mjs",
-    "test:worker": "vitest run worker-tests"
+    "test:worker": "vitest run worker-tests",
+    "demo": "npm run build && node scripts/demo.mjs --serve",
+    "demo:init": "node scripts/demo.mjs",
+    "demo:reset": "node scripts/demo.mjs --reset",
+    "backup:drill": "node scripts/restore-check.mjs",
+    "health:check": "node scripts/health-check.mjs",
+    "demo:capture": "node scripts/capture-demo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",

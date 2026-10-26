@@ -28,6 +28,33 @@ status. Google event creation, invitations and cancellation were validated in Pr
 A short-lived, one-use link can transfer access to another device.
 See the [roadmap](docs/ROADMAP.md).
 
+## How a reservation reaches the calendar
+
+```mermaid
+flowchart TD
+  UI[React booking page] --> API[Worker: identity and ownership]
+  API --> DB[D1: reservation and occupied intervals]
+  DB --> Jobs[Durable integration jobs]
+  Jobs --> Google[Google Calendar and invitations]
+  Jobs --> Mail[Optional transactional email]
+```
+
+D1 enforces occupied intervals and versioned decisions inside the same transaction.
+Google and email delivery run afterwards with stable IDs and retries. A delivery
+failure is visible separately from the booking status.
+
+## Try an isolated demo
+
+Run `npm run demo` and open `http://127.0.0.1:8788`. The professional login password
+is `slotiva-demo-local`; set SLOTIVA_DEMO_PASSWORD to override it. The demo includes
+fictional services, one confirmed appointment and one pending request. Google and
+email delivery are disabled. Stop the server before `npm run demo:reset`.
+
+The demo uses its own local storage and an unprovisioned D1 identifier; these
+commands do not access Preview or production. `npm run backup:drill` verifies a
+restored local copy. With Chromium installed, `npm run demo:capture` captures the
+fictional public page. Operational details are in [Operations](docs/OPERATIONS.md).
+
 ## Local development
 
 Requires Node.js 22.12+ or 24+.

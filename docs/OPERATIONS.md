@@ -167,3 +167,34 @@ key while unaccepted encrypted jobs remain.
 
 Provider references: [Send email](https://resend.com/docs/api-reference/emails/send-email),
 [Idempotency keys](https://resend.com/docs/dashboard/emails/idempotency-keys).
+
+## Demo, restore drill and monitoring
+
+`npm run demo` builds and serves an isolated local application on 127.0.0.1:8788.
+It uses wrangler.demo.jsonc and .wrangler/demo, seeds fictional appointments and
+forces Google identity and email sending off. The development password is
+slotiva-demo-local unless SLOTIVA_DEMO_PASSWORD is set. No remote execution option
+exists in the seed/reset helper. Reset refuses unrecognized or symlinked storage.
+Stop the demo before `npm run demo:reset`; this removes only the marked local demo
+store, reapplies migrations and recreates fictional data.
+
+With the demo initialized and stopped, `npm run backup:drill` takes a SQLite backup,
+restores another copy, then checks integrity, foreign keys, schema and per-table
+row counts. It leaves the source untouched. This verifies the local procedure,
+not restoration of the remote D1 database. Use an isolated remote target and the
+Cloudflare backup procedure before a real pilot; retain the recovery bookmark and
+verify reservations, occupancy and professional access before resuming traffic.
+
+`npm run health:check -- https://HOST/api/health` exits nonzero on timeout,
+redirect, non-success status or an unexpected D1 health response. It logs the
+host, timestamp and latency without contacts or secrets. Connect it to the
+operator's uptime monitoring before a pilot. It tests application/schema
+availability, not Google authorization or message delivery; inspect per-booking
+Calendar and email failure states for those. Stop accepting new real bookings
+when persistent failures cannot be resolved; preserve the booking history and
+communicate through the agreed professional support channel.
+
+Capture only the fictional demo with `npm run demo:capture` after installing
+Chromium through Playwright. CI runs the seed/restore check and provides the
+fictional-demo-preview artifact. Do not use a signed-in customer browser for
+portfolio screenshots.
