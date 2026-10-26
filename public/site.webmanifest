@@ -1,0 +1,11 @@
+{
+  "name": "Slotiva — horários livres que viram encontros",
+  "short_name": "Slotiva",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#284d3d",
+  "background_color": "#f7f9f5",
+  "icons": [{"src":"/brand/slotiva-symbol.png","sizes":"1254x1254","type":"image/png","purpose":"any"}]
+}

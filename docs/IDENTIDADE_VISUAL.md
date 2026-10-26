@@ -15,5 +15,9 @@ Preserve the drawing's proportions. Use the symbol at small sizes rather than
 shrinking the complete logo. Check legibility at 16 and 32 pixels, contrast on
 light/dark backgrounds and an accessible name for the home link.
 
-The application currently uses a text brand; exported logo assets still need
-to be integrated. Professional page themes are separate from the platform brand.
+The approved full logo is in public/brand/slotiva-logo.jpg. Its original pixels
+are preserved; the home layout crops only the surrounding empty space. The
+transparent symbol is in public/brand/slotiva-symbol.png and is used in the
+header, favicon, Apple touch icon and manifest. Professional page themes remain
+separate from the platform brand. Review the symbol at small sizes on the devices
+used in the pilot; the manifest does not imply offline booking support.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Integrates the approved original logo and a transparent symbol in the home
+  page, header, favicon and mobile manifest. Adds a genuine fictional-demo
+  screenshot to README; no signed-in customer screen is used.
+
 - Professional client records keep shared addresses separate, show booking-scoped
   mailbox proof, allow explicit versioned booking associations and preserve history
   when archived. Contact edits do not silently rewrite existing reservations.

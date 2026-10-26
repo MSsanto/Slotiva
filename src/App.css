@@ -18,16 +18,29 @@ header {
   letter-spacing: -1.5px;
 }
 .brand-icon {
-  display: grid;
-  place-items: center;
-  background: #234f41;
-  color: #dcf39a;
-  width: 35px;
-  height: 35px;
-  border-radius: 11px;
-  margin-right: 10px;
-  font-size: 32px;
+  object-fit: contain;
+  width: 40px;
+  height: 40px;
+  margin-right: 8px;
+  flex-shrink: 0;
 }
+.platform-logo-frame {
+  display: block;
+  position: relative;
+  width: min(100%, 620px);
+  aspect-ratio: 2.7;
+  overflow: hidden;
+}
+.platform-logo {
+  position: absolute;
+  width: 150%;
+  max-width: none;
+  height: auto;
+  left: -24%;
+  top: -50%;
+  mix-blend-mode: multiply;
+}
+
 .brand-dot {
   color: #699447;
 }

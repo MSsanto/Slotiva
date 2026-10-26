@@ -52,9 +52,10 @@ is separate from preserving the current browser session after reload.
 
 ## Portfolio presentation
 
-- README architecture diagram is present. CI captures a fictional demo screenshot
-  for review before adding the image to the repository.
-- Integrate the approved logo variants, favicon and mobile icon.
+- README includes an architecture diagram and a real screenshot of the isolated
+  fictional demo, captured and verified in CI.
+- The original logo and a transparent symbol are integrated into the home page,
+  header, favicon and mobile manifest. Validate appearance on pilot devices.
 
 ## Before a customer pilot
 

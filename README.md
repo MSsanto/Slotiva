@@ -1,5 +1,7 @@
 # Slotiva
 
+![Slotiva — horários livres que viram encontros.](public/brand/slotiva-logo.jpg)
+
 **Horários livres que viram encontros.**
 
 Appointment scheduling for independent professionals. Each professional has a
@@ -27,6 +29,8 @@ checked before approval and professional series creation; public availability al
 status. Google event creation, invitations and cancellation were validated in Preview. Customer access survives reload through a booking-scoped HttpOnly browser cookie.
 A short-lived, one-use link can transfer access to another device.
 See the [roadmap](docs/ROADMAP.md).
+
+![Fictional local demo with services and booking form.](docs/images/demo.png)
 
 ## How a reservation reaches the calendar
 
