@@ -145,3 +145,25 @@ reason, not the OAuth callback URL containing `code` or `state`.
 The health endpoint checks the application schema. It does not test OAuth or
 external delivery. Test outcomes belong in the relevant issue or PR, not in this
 setup guide.
+
+## Enable application email
+
+Google invitations work independently. For recovery and Slotiva status messages,
+verify a sending domain in Resend, then configure EMAIL_FROM as a bare address on
+that domain and EMAIL_ENABLED=true. Store EMAIL_API_KEY as a Preview secret.
+Create EMAIL_TOKEN_KEY once using the same 32-byte base64 generation procedure
+as CALENDAR_TOKEN_KEY, with the new secret name; do not reuse or rotate the Calendar
+key. Email bodies containing recovery links are encrypted with this separate key.
+Apply migration 0015 before publishing this code. Never put real keys in Git.
+
+Keep sending disabled until the provider domain is verified. Use a controlled
+recipient mailbox to validate recovery, expiry, bounce handling and provider
+acceptance. The panel does not claim inbox delivery; inspect provider delivery
+logs for acceptance/bounce diagnostics. Failed/expired jobs are visible separately
+from booking status. Cron and post-mutation execution drain bounded batches; the
+panel also offers a manual retry. If Cron is unavailable in Preview, explicitly
+exercise that action. Do not replay jobs beyond their expiry or rotate the email
+key while unaccepted encrypted jobs remain.
+
+Provider references: [Send email](https://resend.com/docs/api-reference/emails/send-email),
+[Idempotency keys](https://resend.com/docs/dashboard/emails/idempotency-keys).

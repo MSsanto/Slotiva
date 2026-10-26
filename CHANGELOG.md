@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Optional transactional email and booking-reference recovery through Resend.
+  Encrypted queues, bounded retries, stable idempotency keys, generic recovery
+  responses and one-use links keep delivery separate from booking status.
+- Email ownership proof is recorded per booking only after redemption of an
+  emailed link. Device-transfer links do not verify contacts or merge addresses.
+- Requires migration 0015, a verified sender and separate email secrets before
+  real delivery can be validated; Google invitations continue independently.
+
 - Customers can propose a new time for a confirmed appointment. The current
   reservation remains confirmed until professional approval atomically creates
   its replacement, cancels the original and transfers customer access. Conflicts

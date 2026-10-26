@@ -1,4 +1,11 @@
 import {
+  emailEnabled,
+  requestRecovery,
+  recoverySchema,
+  processEmailJobs,
+  emailStatus,
+} from "./email";
+import {
   proposeChange,
   changeStatus,
   pendingChanges,
@@ -197,6 +204,18 @@ async function route(request: Request, env: Env) {
     throw new HttpError(503, "Banco da agenda ainda não configurado.");
   if (path.startsWith("/api/customer/")) {
     if (method !== "GET") origin(request);
+    if (path === "/api/customer/delivery" && method === "GET")
+      return json({ enabled: emailEnabled(env) });
+    if (path === "/api/customer/recovery" && method === "POST") {
+      await requestRecovery(request, env, await read(request, recoverySchema));
+      return json(
+        {
+          detail:
+            "Se a identificação e o e-mail corresponderem à reserva, você receberá um link de acesso.",
+        },
+        202,
+      );
+    }
     if (path === "/api/customer/bookings" && method === "GET")
       return json(
         (
@@ -260,6 +279,7 @@ async function route(request: Request, env: Env) {
     await env.DB.prepare("SELECT 1 FROM calendar_jobs LIMIT 1").first();
     await env.DB.prepare("SELECT 1 FROM customer_grants LIMIT 1").first();
     await env.DB.prepare("SELECT 1 FROM date_hours LIMIT 1").first();
+    await env.DB.prepare("SELECT 1 FROM email_jobs LIMIT 1").first();
     await env.DB.prepare(
       "SELECT 1 FROM calendar_oauth_transactions LIMIT 1",
     ).first();
@@ -560,6 +580,17 @@ async function route(request: Request, env: Env) {
     }
     const principal = await requireAdmin(request, env);
     professionalId = principal.professionalId!;
+    if (path === "/api/admin/delivery" && method === "GET")
+      return json(await emailStatus(env, professionalId));
+    if (path === "/api/admin/delivery/retry" && method === "POST") {
+      await env.DB.prepare(
+        "UPDATE email_jobs SET next_attempt=0 WHERE professional_id=? AND state='failed' AND expires_at>unixepoch()",
+      )
+        .bind(professionalId)
+        .run();
+      await processEmailJobs(env, professionalId);
+      return json(await emailStatus(env, professionalId));
+    }
     if (path === "/api/admin/booking-changes" && method === "GET")
       return json(await pendingChanges(env, professionalId));
     const changeDecision = path.match(
@@ -805,7 +836,7 @@ export default {
         "DELETE FROM customer_links WHERE expires_at<=unixepoch()",
       ),
     ]);
-    await processCalendarJobs(env);
+    await Promise.all([processCalendarJobs(env), processEmailJobs(env)]);
   },
   async fetch(
     request: Request,
@@ -890,8 +921,8 @@ export default {
       new URL(request.url).pathname.startsWith("/api/")
     )
       ctx.waitUntil(
-        processCalendarJobs(env).catch(() =>
-          console.error("calendar sync unavailable"),
+        Promise.all([processCalendarJobs(env), processEmailJobs(env)]).catch(
+          () => console.error("external delivery unavailable"),
         ),
       );
     return response;
