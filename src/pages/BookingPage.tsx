@@ -1,3 +1,4 @@
+import { BookingChangeRequest } from "./BookingChanges";
 import { useParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -451,12 +452,15 @@ export default function BookingPage() {
             {rescheduling ? "Voltar à solicitação" : "Alterar solicitação"}
           </button>
         )}
-        {current?.status === "confirmed" && (
-          <p>
-            Para remarcar, entre em contato com o profissional. Seu horário
-            atual permanece confirmado.
-          </p>
-        )}
+        <BookingChangeRequest
+          booking={current ?? confirmed}
+          headers={customerHeaders}
+          onChanged={(receipt) => {
+            setConfirmed(receipt);
+            setRescheduling(false);
+            setTime("");
+          }}
+        />
         <WhatsAppContact number={profile.data?.whatsappNumber} />
         {active && (
           <button

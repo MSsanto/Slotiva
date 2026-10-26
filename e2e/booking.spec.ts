@@ -1016,3 +1016,90 @@ test("master restores a deleted professional and cancels the confirmation safely
     page.getByText("Nenhum cadastro excluído.", { exact: true }),
   ).toBeVisible();
 });
+
+test("customer proposes a confirmed appointment change and opens the approved replacement", async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await page.goto("/admin");
+  await page.getByLabel("Senha administrativa").fill("test-password-long");
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Minha agenda" }),
+  ).toBeVisible();
+  const calendar = await (await page.request.get("/api/calendar")).json();
+  let date = "",
+    times: string[] = [];
+  for (let offset = 3; offset <= 14; offset++) {
+    const d = new Date(`${calendar.today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + offset);
+    const key = d.toISOString().slice(0, 10);
+    const slots = await (
+      await page.request.get(
+        `/api/availability?date=${key}&serviceId=discovery`,
+      )
+    ).json();
+    if (slots.length > 2) {
+      date = key;
+      times = slots;
+      break;
+    }
+  }
+  expect(date).not.toBe("");
+  const created = await page.request.post("/api/bookings", {
+    data: {
+      serviceId: "discovery",
+      serviceVersion: 1,
+      date,
+      time: times[0],
+      name: "Change fixture",
+      email: "change@example.com",
+    },
+  });
+  expect(created.status()).toBe(201);
+  const receipt = await created.json();
+  const Origin = new URL(page.url()).origin;
+  expect(
+    (
+      await page.request.post(`/api/admin/bookings/${receipt.id}/approve`, {
+        headers: { Origin },
+        data: { version: receipt.version },
+      })
+    ).status(),
+  ).toBe(200);
+  const customer = await page.context().newPage();
+  await customer.goto("/");
+  await customer
+    .getByRole("button", { name: "Propor outro horário", exact: true })
+    .click();
+  await customer.getByLabel("Nova data", { exact: true }).fill(date);
+  await customer
+    .getByLabel("Novo horário", { exact: true })
+    .fill(times.at(-1)!);
+  await customer
+    .getByRole("button", { name: "Enviar proposta", exact: true })
+    .click();
+  await expect(
+    customer.getByRole("region", { name: "Reagendamento" }),
+  ).toContainText("aguardando aprovação");
+  await page.reload();
+  const proposals = page.getByRole("region", {
+    name: "Propostas de reagendamento",
+  });
+  await expect(proposals).toContainText("Change fixture");
+  page.once("dialog", (dialog) => dialog.accept());
+  await proposals
+    .getByRole("button", { name: "Aprovar mudança", exact: true })
+    .click();
+  await expect(proposals).toContainText("Nenhuma mudança aguardando aprovação");
+  await customer
+    .getByRole("button", { name: "Ver nova reserva", exact: true })
+    .click();
+  await expect(customer.locator(".receipt")).toContainText(times.at(-1)!);
+  await customer
+    .getByRole("button", { name: "Cancelar esta reserva", exact: true })
+    .click();
+  await expect(
+    customer.getByRole("status").filter({ hasText: "Reserva cancelada." }),
+  ).toBeVisible();
+});

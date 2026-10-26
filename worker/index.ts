@@ -1,3 +1,9 @@
+import {
+  proposeChange,
+  changeStatus,
+  pendingChanges,
+  decideChange,
+} from "./booking-changes";
 import { dateHours, saveDateHours, dateHoursSchema } from "./date-hours";
 import {
   customerBooking as customer,
@@ -220,6 +226,23 @@ async function route(request: Request, env: Env) {
       response.headers.set("Set-Cookie", redeemed.cookie);
       return response;
     }
+  }
+  const customerChange = path.match(/^\/api\/bookings\/([^/]+)\/change$/);
+  if (customerChange && ["GET", "POST"].includes(method)) {
+    if (!bookingId.safeParse(customerChange[1]).success)
+      throw new HttpError(404, "Reserva não encontrada.");
+    if (method === "GET")
+      return json(await changeStatus(request, env, customerChange[1]));
+    origin(request);
+    return json(
+      await proposeChange(
+        request,
+        env,
+        customerChange[1],
+        await read(request, moveSchema),
+      ),
+      201,
+    );
   }
   const accessLink = path.match(/^\/api\/bookings\/([^/]+)\/access$/);
   if (accessLink && method === "POST") {
@@ -537,6 +560,27 @@ async function route(request: Request, env: Env) {
     }
     const principal = await requireAdmin(request, env);
     professionalId = principal.professionalId!;
+    if (path === "/api/admin/booking-changes" && method === "GET")
+      return json(await pendingChanges(env, professionalId));
+    const changeDecision = path.match(
+      /^\/api\/admin\/booking-changes\/([^/]+)\/(approve|reject)$/,
+    );
+    if (changeDecision && method === "POST") {
+      const data = await read(
+        request,
+        z.object({ version: z.number().int().positive() }).strict(),
+      );
+      return json(
+        await decideChange(
+          env,
+          professionalId,
+          principal.subject,
+          changeDecision[1],
+          changeDecision[2] as "approve" | "reject",
+          data.version,
+        ),
+      );
+    }
     if (path === "/api/admin/calendar" && method === "GET")
       return json(await calendarStatus(env, principal));
     if (path === "/api/admin/calendar/sync" && principal.provider !== "google")
@@ -750,6 +794,9 @@ async function route(request: Request, env: Env) {
 export default {
   async scheduled(_controller: ScheduledController, env: Env) {
     await expirePending(env);
+    await env.DB.prepare(
+      "UPDATE booking_changes SET state='expired',version=version+1 WHERE state='pending' AND expires_at<=unixepoch()",
+    ).run();
     await env.DB.batch([
       env.DB.prepare(
         "DELETE FROM customer_grants WHERE expires_at<=unixepoch()",

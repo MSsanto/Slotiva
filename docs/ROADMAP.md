@@ -26,8 +26,8 @@ is separate from preserving the current browser session after reload.
 
 ## Product improvements
 
-- Propose changes to confirmed appointments while retaining the original time
-  until the professional approves the replacement.
+- Confirmed appointment change proposals are implemented with atomic replacement;
+  validate the approval/rejection and Google cancellation/new-event flow in Preview.
 - Date-specific working-hour exceptions are implemented; validate closures and
   additional opening days in Preview.
 - Editing recurring agreements.
