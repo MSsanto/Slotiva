@@ -223,3 +223,27 @@ export async function emailStatus(env: Env, owner: string) {
     .all();
   return { enabled: emailEnabled(env), jobs: jobs.results };
 }
+
+export async function limitBookingEmails(request: Request, env: Env) {
+  if (!emailEnabled(env)) return;
+  const hour = Math.floor(now() / 3600);
+  const ip = await digest(
+    String(env.EMAIL_TOKEN_KEY) +
+      ":" +
+      (request.headers.get("CF-Connecting-IP") ?? "local"),
+  );
+  await env.DB.prepare(
+    "DELETE FROM recovery_limits WHERE expires_at<=unixepoch()",
+  ).run();
+  const result = await env.DB.prepare(
+    "INSERT INTO recovery_limits(bucket,expires_at) VALUES(?,?) ON CONFLICT(bucket) DO UPDATE SET attempts=attempts+1 WHERE attempts<20 RETURNING attempts",
+  )
+    .bind("booking:" + hour + ":" + ip, now() + 3600)
+    .first();
+  if (!result) {
+    throw new HttpError(
+      429,
+      "Muitas tentativas de agendamento. Aguarde antes de tentar novamente.",
+    );
+  }
+}

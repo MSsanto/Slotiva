@@ -1,3 +1,4 @@
+import SeriesEditor from "./SeriesEditor";
 import ClientSettings from "./ClientSettings";
 import EmailSettings from "./EmailSettings";
 import BookingChanges from "./BookingChanges";
@@ -465,6 +466,7 @@ export default function AdminPage() {
       <ClientSettings bookings={bookings.data ?? []} />
       <BookingChanges />
       <AgreedBookings />
+      <SeriesEditor />
       <DateHoursSettings />
       <EmailSettings />
       {authOptions.data?.googleEnabled && <CalendarSettings />}

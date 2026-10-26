@@ -23,20 +23,20 @@
 These new implementations require Preview rollout and acceptance; automated
 coverage does not establish real-provider delivery or an agreed retention policy.
 
-## Remaining implementation
+## Recurring edits and Calendar review
 
-- Edit finite recurring agreements, replacing only future occurrences atomically
-  while preserving history, service snapshots and scoped customer access.
-- Reconcile direct Google edits/deletions through a visible review flow without
-  silently overwriting external changes.
+- Future recurring agreements can be replaced atomically with version guards,
+  preserved history and service snapshots, and scoped customer-grant transfer.
+- Calendar review detects moved/deleted linked events without silently recreating
+  them. Direct Google changes still require professional review rather than being
+  imported automatically.
 
-Both items are tracked in [issue #20](https://github.com/MSsanto/Slotiva/issues/20).
-An interrupted local prototype is not part of the release; migration 0017 is not
-published. Resume from the tested branch and migrations through 0016.
+Migration 0017 records replacement lineage. Validate these flows against a real
+Google account in Preview before considering issue #20 accepted for a pilot.
 
 ## Preview rollout and pilot acceptance
 
-- Apply migrations 0012 through 0016 to the isolated Preview database before
+- Apply migrations 0012 through 0017 to the isolated Preview database before
   publishing the matching branch. Do not deploy this work to production implicitly.
 - Validate reload, access revocation, one-use links, date exceptions, change
   approval/rejection and client export/association with fictional records.
