@@ -108,11 +108,11 @@ APIs to inspect clients. GET `/api/master/session` confirms the master role.
 
 | Route                                     | Input / output                                                     |
 | ----------------------------------------- | ------------------------------------------------------------------ |
-| GET /api/master/professionals             | Nondeleted profiles, including suspended accounts                  |
+| GET /api/master/professionals             | Active/suspended profiles; ?status=deleted lists deleted profiles                  |
 | POST /api/master/professionals            | Branding + slug, invitedEmail, optional googleSubject; 201 profile |
 | PUT /api/master/professionals/{id}        | Branding + current version; profile                                |
 | PUT /api/master/professionals/{id}/status | `{status:active\|suspended,version}`; profile                      |
-| DELETE /api/master/professionals/{id}     | `{version}`; 204; terminal removal                                 |
+| DELETE /api/master/professionals/{id}     | `{version}`; 204; recoverable removal                                 |
 
 Branding: displayName (1–100), headerTitle (1–120), headerSubtitle (0–240),
 theme (forest/navy/plum). Slugs are 3–48 lowercase alphanumeric/hyphen characters,
@@ -274,3 +274,23 @@ Suspended/deleted professional pages remain unavailable.
 The public page and customer receipt build a fixed wa.me link with a neutral
 message and no customer/booking data. Contact does not mutate booking status.
 Migration 0009 adds the contact fields; existing professionals start with it hidden.
+
+## Restore a deleted professional
+
+GET `/api/master/professionals?status=deleted` lists deleted profiles for the
+authenticated master. Default listing still excludes them; other status filters
+return 422.
+
+POST `/api/master/professionals/{id}/restore` requires the master session,
+exact Origin and `{version}`. It returns 200 with the original profile active
+and its version incremented. Nondeleted, missing or stale profiles return 409.
+The normal status endpoint cannot restore a deleted account.
+
+Restoration preserves ID, slug, invited email, Google subject, branding, services
+and working hours. It does not revive cancelled bookings, expired sessions or
+deleted Calendar grants. WhatsApp publication is disabled until the professional
+explicitly enables it again. The professional must sign in again and reconnect
+Calendar. A restored audit event records the master actor and new version.
+Identifiers remain unique; this restores the original account rather than freeing
+its identifiers for a different person. Physical deletion remains blocked.
+Migration 0010 replaces the lifecycle guard and audit triggers.

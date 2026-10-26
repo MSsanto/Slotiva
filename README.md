@@ -11,6 +11,7 @@ Built with React, TypeScript, Vite, Cloudflare Workers and D1.
 ## Features
 
 - Google sign-in, professional invitations and separate administrator access.
+- Master management of active, suspended and deleted profiles, including restoration.
 - Public pages at `/p/{slug}`, with editable branding, services and working hours.
 - Optional WhatsApp contact configured and enabled by each professional.
 - Booking requests with 48-hour notice and a 24-hour approval deadline.

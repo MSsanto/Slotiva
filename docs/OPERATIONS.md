@@ -84,6 +84,19 @@ verify the contact disappears. Repeat with two professional pages to check
 ownership. Phone formatting is validated; the professional must check that the
 destination is their intended WhatsApp account.
 
+## Restoring deleted accounts
+
+Apply migration 0010 before publishing the restoration UI/API. It replaces
+lifecycle triggers without rewriting stored profiles or bookings. The older
+Worker remains compatible, but cannot offer restoration.
+
+In /master, open Excluídos and restore a fictional account. Confirm its public
+page returns under the original slug, the same Google identity can sign in again,
+old sessions remain rejected, cancelled reservations remain cancelled and
+Calendar stays disconnected. Check that WhatsApp publication is hidden.
+Dismissing the confirmation must leave the account deleted. A stale restore
+request must fail without an extra audit event.
+
 ## Acceptance checks
 
 Use fictional customers and two professional accounts.

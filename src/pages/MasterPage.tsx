@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage, type ManagedProfessional } from "../api";
 export default function MasterPage() {
   const cache = useQueryClient(),
-    [editing, setEditing] = useState<ManagedProfessional | null>(null);
+    [editing, setEditing] = useState<ManagedProfessional | null>(null),
+    [showDeleted, setShowDeleted] = useState(false),
+    [formVersion, setFormVersion] = useState(0),
+    [notice, setNotice] = useState("");
   const session = useQuery({
     queryKey: ["master-session"],
     queryFn: () => api("/master/session"),
@@ -14,8 +17,11 @@ export default function MasterPage() {
     queryFn: () => api<{ googleEnabled: boolean }>("/auth/config"),
   });
   const professionals = useQuery({
-    queryKey: ["master-professionals"],
-    queryFn: () => api<ManagedProfessional[]>("/master/professionals"),
+    queryKey: ["master-professionals", showDeleted ? "deleted" : "current"],
+    queryFn: () =>
+      api<ManagedProfessional[]>(
+        `/master/professionals${showDeleted ? "?status=deleted" : ""}`,
+      ),
     enabled: session.isSuccess,
   });
   const refresh = () => {
@@ -29,7 +35,30 @@ export default function MasterPage() {
         method: id ? "PUT" : "POST",
         body: JSON.stringify(data),
       }),
-    onSuccess: refresh,
+    onMutate: () => setNotice(""),
+    onSuccess: (_result, variables) => {
+      if (!variables.id) setFormVersion((n) => n + 1);
+      setShowDeleted(false);
+      setNotice(
+        variables.id ? "Cabeçalho atualizado." : "Profissional criado.",
+      );
+      refresh();
+    },
+  });
+  const restore = useMutation({
+    mutationFn: (p: ManagedProfessional) =>
+      api(`/master/professionals/${p.id}/restore`, {
+        method: "POST",
+        body: JSON.stringify({ version: p.version }),
+      }),
+    onMutate: () => setNotice(""),
+    onSuccess: () => {
+      setNotice(
+        "Cadastro restaurado. O profissional precisa entrar novamente. Reservas canceladas não foram reativadas.",
+      );
+      setShowDeleted(false);
+      refresh();
+    },
   });
   const state = useMutation({
     mutationFn: ({
@@ -50,6 +79,7 @@ export default function MasterPage() {
           ),
         },
       ),
+    onMutate: () => setNotice(""),
     onSuccess: refresh,
   });
   const logout = useMutation({
@@ -86,18 +116,22 @@ export default function MasterPage() {
       </div>
       <p>
         Excluir retira a página do ar, revoga acessos e cancela reservas ativas.
-        O histórico é preservado.
+        O histórico fica em Excluídos, onde o cadastro pode ser restaurado.
       </p>
-      {(professionals.error || save.error || state.error || logout.error) && (
+      {notice && <p role="status">{notice}</p>}
+      {(professionals.error ||
+        restore.error ||
+        state.error ||
+        logout.error) && (
         <p role="alert">
           {errorMessage(
-            professionals.error || save.error || state.error || logout.error,
+            professionals.error || restore.error || state.error || logout.error,
           )}
         </p>
       )}
       <form
         className="hours"
-        key={editing?.id ?? "new"}
+        key={editing?.id ?? `new-${formVersion}`}
         onSubmit={(e) => {
           e.preventDefault();
           const d = new FormData(e.currentTarget);
@@ -202,7 +236,42 @@ export default function MasterPage() {
             Voltar à criação
           </button>
         )}
+        {save.isError && (
+          <p role="alert">
+            {errorMessage(save.error)} Se o cadastro foi excluído, procure-o em
+            Excluídos.
+          </p>
+        )}
       </form>
+      <div role="group" aria-label="Filtrar profissionais">
+        <button
+          type="button"
+          aria-pressed={!showDeleted}
+          onClick={() => setShowDeleted(false)}
+        >
+          Ativos e suspensos
+        </button>
+        <button
+          type="button"
+          aria-pressed={showDeleted}
+          onClick={() => setShowDeleted(true)}
+        >
+          Excluídos
+        </button>
+      </div>
+      {showDeleted && (
+        <p>
+          Restaure o cadastro para reutilizar seu endereço e identidade. As
+          reservas canceladas permanecem no histórico.
+        </p>
+      )}
+      {professionals.isSuccess && professionals.data.length === 0 && (
+        <p>
+          {showDeleted
+            ? "Nenhum cadastro excluído."
+            : "Nenhum profissional cadastrado."}
+        </p>
+      )}
       {professionals.isPending ? (
         <p role="status">Carregando profissionais…</p>
       ) : (
@@ -212,43 +281,69 @@ export default function MasterPage() {
               <strong>{p.displayName}</strong>
               <p>
                 {p.invitedEmail} ·{" "}
-                {p.status === "active" ? "Ativo" : "Suspenso"}
+                {p.status === "active"
+                  ? "Ativo"
+                  : p.status === "deleted"
+                    ? "Excluído"
+                    : "Suspenso"}
               </p>
-              <a href={`/p/${p.slug}`} target="_blank" rel="noreferrer">
-                /p/{p.slug}
-              </a>
+              {p.status === "deleted" ? (
+                <span>/p/{p.slug}</span>
+              ) : (
+                <a href={`/p/${p.slug}`} target="_blank" rel="noreferrer">
+                  /p/{p.slug}
+                </a>
+              )}
             </div>
             <div>
-              <button
-                disabled={p.status !== "active"}
-                onClick={() => setEditing(p)}
-              >
-                Editar cabeçalho
-              </button>
-              <button
-                disabled={state.isPending}
-                onClick={() =>
-                  state.mutate({
-                    p,
-                    action: p.status === "active" ? "suspended" : "active",
-                  })
-                }
-              >
-                {p.status === "active" ? "Suspender" : "Reativar"}
-              </button>
-              <button
-                disabled={state.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Excluir ${p.displayName}? A página será retirada e as reservas ativas serão canceladas.`,
+              {p.status === "deleted" ? (
+                <button
+                  disabled={restore.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Restaurar ${p.displayName}? A página voltará a ficar disponível. O profissional precisará entrar novamente e reconectar o Google Agenda. As reservas canceladas continuarão canceladas; o WhatsApp ficará oculto até ser ativado novamente.`,
+                      )
                     )
-                  )
-                    state.mutate({ p, action: "deleted" });
-                }}
-              >
-                Excluir profissional
-              </button>
+                      restore.mutate(p);
+                  }}
+                >
+                  Restaurar cadastro
+                </button>
+              ) : (
+                <>
+                  <button
+                    disabled={p.status !== "active"}
+                    onClick={() => setEditing(p)}
+                  >
+                    Editar cabeçalho
+                  </button>
+                  <button
+                    disabled={state.isPending}
+                    onClick={() =>
+                      state.mutate({
+                        p,
+                        action: p.status === "active" ? "suspended" : "active",
+                      })
+                    }
+                  >
+                    {p.status === "active" ? "Suspender" : "Reativar"}
+                  </button>
+                  <button
+                    disabled={state.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Excluir ${p.displayName}? A página será retirada e as reservas ativas serão canceladas.`,
+                        )
+                      )
+                        state.mutate({ p, action: "deleted" });
+                    }}
+                  >
+                    Excluir profissional
+                  </button>
+                </>
+              )}
             </div>
           </article>
         ))

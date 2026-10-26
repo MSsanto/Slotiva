@@ -22,6 +22,7 @@ import {
   whatsappSchema,
   privateProfile,
   createProfessional,
+  restoreProfessional,
   editProfessional,
   changeProfessionalStatus,
   createProfessionalSchema,
@@ -368,14 +369,33 @@ async function route(request: Request, env: Env) {
     if (path === "/api/master/session" && method === "GET")
       return json({ authenticated: true, role: "master" });
     if (path === "/api/master/professionals" && method === "GET") {
+      const filter = url.searchParams.get("status");
+      if (filter !== null && filter !== "deleted")
+        throw new HttpError(422, "Filtro de profissionais inválido.");
       const rows = await env.DB.prepare(
-        "SELECT * FROM professionals WHERE status!='deleted' ORDER BY created_at,id",
+        filter === "deleted"
+          ? "SELECT * FROM professionals WHERE status='deleted' ORDER BY created_at,id"
+          : "SELECT * FROM professionals WHERE status!='deleted' ORDER BY created_at,id",
       ).all<Professional>();
       return json(rows.results.map(privateProfile));
     }
     if (path === "/api/master/professionals" && method === "POST") {
       const data = await read(request, createProfessionalSchema);
       return json(await createProfessional(env, data, principal.subject), 201);
+    }
+    const restoreMatch = path.match(
+      /^\/api\/master\/professionals\/([^/]+)\/restore$/,
+    );
+    if (restoreMatch && method === "POST") {
+      const data = await read(request, versionSchema);
+      return json(
+        await restoreProfessional(
+          env,
+          restoreMatch[1],
+          data.version,
+          principal.subject,
+        ),
+      );
     }
     const masterMatch = path.match(
       /^\/api\/master\/professionals\/([^/]+)(?:\/(status))?$/,

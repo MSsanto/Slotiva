@@ -279,6 +279,9 @@ test("master manages professionals and their public links in the UI (API fixture
   await expect(
     page.getByRole("link", { name: "/p/fictional-psychologist" }),
   ).toBeVisible();
+  await expect(form.getByLabel("Nome profissional")).toHaveValue("");
+  await expect(form.getByLabel("Endereço público")).toHaveValue("");
+  await expect(form.getByLabel("E-mail Google convidado")).toHaveValue("");
   page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("button", { name: "Excluir profissional", exact: true })
@@ -802,4 +805,78 @@ test("professional publishes and hides WhatsApp contact on the public page", asy
   });
   await page.goto("/p/demo");
   await expect(link).toHaveCount(0);
+});
+
+test("master restores a deleted professional and cancels the confirmation safely (API fixtures)", async ({
+  page,
+}) => {
+  let removed = true;
+  let restores = 0;
+  const profile = {
+    id: "restore-fixture",
+    slug: "restore-fixture",
+    displayName: "Restoration example",
+    headerTitle: "Appointments",
+    headerSubtitle: "",
+    theme: "forest",
+    invitedEmail: "restore@example.com",
+    googleSubject: "restore-subject",
+    version: 4,
+  };
+  await page.route("**/api/master/session", (r) =>
+    r.fulfill({ json: { authenticated: true, role: "master" } }),
+  );
+  await page.route("**/api/master/professionals**", async (route) => {
+    const req = route.request();
+    if (
+      req.method() === "POST" &&
+      new URL(req.url()).pathname.endsWith("/restore")
+    ) {
+      expect(req.postDataJSON()).toEqual({ version: 4 });
+      removed = false;
+      restores++;
+      await route.fulfill({
+        json: { ...profile, status: "active", version: 5 },
+      });
+    } else {
+      const showDeleted =
+        new URL(req.url()).searchParams.get("status") === "deleted";
+      await route.fulfill({
+        json:
+          showDeleted === removed
+            ? [{ ...profile, status: removed ? "deleted" : "active" }]
+            : [],
+      });
+    }
+  });
+  await page.goto("/master");
+  await expect(
+    page.getByRole("button", { name: "Restaurar cadastro" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Excluídos", exact: true }).click();
+  await expect(
+    page.getByText("Restoration example", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "/p/restore-fixture" }),
+  ).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Restaurar cadastro" }).click();
+  expect(restores).toBe(0);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain(
+      "reservas canceladas continuarão canceladas",
+    );
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "Restaurar cadastro" }).click();
+  await expect(page.getByRole("status")).toContainText("Cadastro restaurado");
+  await expect(
+    page.getByRole("link", { name: "/p/restore-fixture" }),
+  ).toBeVisible();
+  expect(restores).toBe(1);
+  await page.getByRole("button", { name: "Excluídos", exact: true }).click();
+  await expect(
+    page.getByText("Nenhum cadastro excluído.", { exact: true }),
+  ).toBeVisible();
 });
