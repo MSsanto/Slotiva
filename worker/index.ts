@@ -15,6 +15,7 @@ import {
   recoverySchema,
   processEmailJobs,
   emailStatus,
+  limitBookingEmails,
 } from "./email";
 import {
   proposeChange,
@@ -393,6 +394,7 @@ async function route(request: Request, env: Env) {
       id = crypto.randomUUID(),
       secret = randomToken();
     requireNotice(w.startsAt);
+    await limitBookingEmails(request, env);
     const grant = await prepareGrant(request, env, id);
     const result = await env.DB.batch([
       env.DB.prepare(

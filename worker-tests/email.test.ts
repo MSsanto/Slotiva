@@ -7,6 +7,7 @@ import {
   emailEnabled,
   processEmailJobs,
   requestRecovery,
+  limitBookingEmails,
 } from "../worker/email";
 import type { Env } from "../worker/types";
 let mf: Miniflare, db: D1Database, id: string;
@@ -245,4 +246,15 @@ it("serializes concurrent senders and refuses redirects without marking messages
       .bind(id)
       .first(),
   ).toEqual({ state: "failed" });
+});
+
+
+it("bounds public request attempts when email is enabled without exposing recipient usage", async () => {
+  await db.prepare("DELETE FROM recovery_limits").run();
+  const request = req("/api/public/mail-a/bookings");
+  for (let index = 0; index < 20; index++) {
+    await expect(limitBookingEmails(request, env())).resolves.toBeUndefined();
+  }
+  await expect(limitBookingEmails(request, env())).rejects.toThrow("Muitas tentativas");
+  await expect(limitBookingEmails(request, {...env(), EMAIL_ENABLED: "false"})).resolves.toBeUndefined();
 });

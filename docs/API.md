@@ -435,3 +435,8 @@ Event listing is bounded to four pages of 2500 resources and fails closed on
 malformed responses or additional pages. All-day events use conservative global-day
 bounds when their calendar timezone is absent, which may require manual review.
 Google edits are reviewed, not automatically imported as confirmed patient changes.
+
+When application email is enabled, public booking attempts are limited to 20 per
+IP/hour using a keyed opaque bucket. The limit does not query or reveal recipient
+history. Recovery retains its separate stricter limits. Disabled mail does not
+change existing public booking limits.
