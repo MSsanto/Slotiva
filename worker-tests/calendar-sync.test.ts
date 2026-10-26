@@ -14,6 +14,7 @@ import {
   assertGoogleFree,
   calendarSyncStatus,
   filterGoogleSlots,
+  assertGoogleFreeForReplacement,
 } from "../worker/calendar-sync";
 import { encryptCalendarToken, calendarStatus } from "../worker/calendar";
 import { createSeries } from "../worker/recurrence";
@@ -531,4 +532,42 @@ it("filters public slots using Google occupancy and the scheduling buffer, inclu
           : new Response(null, { status: 503 }),
     ),
   ).rejects.toThrow("agenda externa");
+});
+
+
+it("ignores only the exact linked event when checking a replacement",async()=>{
+ const row=await db.prepare("SELECT starts_at FROM bookings WHERE id=?").bind(id).first<{starts_at:number}>();
+ const eventId=await digest("slotiva-event-v1:sync-a:sync-sub:"+id);
+ const own={id:eventId,status:"confirmed",start:{dateTime:new Date(row!.starts_at*1000).toISOString()},end:{dateTime:new Date((row!.starts_at+3600)*1000).toISOString()},extendedProperties:{private:{slotivaBooking:id}}};
+ let items=[own];
+ const list:typeof fetch=async(input,init)=>String(input).includes("/events?")?Response.json({kind:"calendar#events",items}):provider(input,init);
+ const ranges=[{startsAt:row!.starts_at,start:600,end:660}];
+ await expect(assertGoogleFreeForReplacement(env(),"sync-a",ranges,[id],list)).resolves.toBeUndefined();
+ items=[own,{...own,id:"unrelated-event"}];
+ await expect(assertGoogleFreeForReplacement(env(),"sync-a",ranges,[id],list)).rejects.toThrow("ocupado");
+});
+it("reports externally moved or deleted synced events without recreating them",async()=>{
+ await processCalendarJobs(env(),"sync-a",provider);expect(inserts).toBe(1);
+ remote={...remote,start:{dateTime:new Date(Date.now()+1000).toISOString()}};
+ await db.prepare("UPDATE calendar_jobs SET state='pending',next_attempt=0").run();
+ await processCalendarJobs(env(),"sync-a",provider);
+ expect(await queueState()).toMatchObject({last_error:"event_changed"});
+ remote=null;
+ await db.prepare("UPDATE calendar_jobs SET state='pending',next_attempt=0").run();
+ await processCalendarJobs(env(),"sync-a",provider);
+ expect(await queueState()).toMatchObject({last_error:"event_changed"});expect(inserts).toBe(1);
+});
+it("accepts a deleted tombstone when propagating a local cancellation",async()=>{
+ await processCalendarJobs(env(),"sync-a",provider);await cancel();
+ remote={id:(await queueState())!.event_id,status:"cancelled"};
+ await processCalendarJobs(env(),"sync-a",provider);
+ expect((await queueState())?.state).toBe("synced");expect(deletes).toBe(0);
+});
+it("fails closed on malformed or unbounded event-list responses",async()=>{
+ const row=await db.prepare("SELECT starts_at FROM bookings WHERE id=?").bind(id).first<{starts_at:number}>();
+ const ranges=[{startsAt:row!.starts_at,start:600,end:660}];
+ await expect(assertGoogleFreeForReplacement(env(),"sync-a",ranges,[id],async(input,init)=>String(input).includes("/events?")?Response.json({}):provider(input,init))).rejects.toThrow("agenda externa");
+ let pages=0;
+ await expect(assertGoogleFreeForReplacement(env(),"sync-a",ranges,[id],async(input,init)=>{if(String(input).includes("/events?")){pages++;return Response.json({kind:"calendar#events",items:[],nextPageToken:"more"});}return provider(input,init);})).rejects.toThrow("consulta maior");
+ expect(pages).toBe(4);
 });

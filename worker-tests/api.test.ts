@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { build } from "esbuild";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
-import { passwordHash } from "../worker/security";
+import { passwordHash, digest } from "../worker/security";
 import worker from "../worker/index";
 import type { Env } from "../worker/types";
 import { today } from "../worker/booking";
@@ -1387,4 +1387,59 @@ describe("client records and privacy requests", () => {
         .first(),
     ).toEqual({ client_id: b.id });
   });
+});
+
+
+describe("editing future recurring agreements",()=>{
+ async function series(){
+  const headers=await admin();
+  const response=await request("/api/admin/series","POST",{...payload("10:00","discovery"),requestId:crypto.randomUUID(),frequency:"weekly",count:2},headers);
+  expect(response.status).toBe(201);
+  const saved=await response.json() as {id:string;bookings:{id:string;version:number}[]};
+  return {...saved,headers};
+ }
+ it("replaces the future agreement atomically, scopes access and replays without duplicates",async()=>{
+  const old=await series(),session="b".repeat(64);
+  await db.prepare("INSERT INTO customer_grants(session_hash,booking_id,expires_at) VALUES(?,?,unixepoch()+3600)").bind(await digest(session),old.bookings[0].id).run();
+  const body={date:day(),time:"14:00",frequency:"weekly",count:3,requestId:crypto.randomUUID(),versions:old.bookings.map(b=>({id:b.id,version:b.version}))};
+  const route="/api/admin/series/"+old.id;
+  const response=await request(route,"PUT",body,old.headers);expect(response.status).toBe(200);
+  const replacement=await response.json() as {id:string;bookings:{id:string}[]};
+  expect(replacement.bookings).toHaveLength(3);
+  expect(await db.prepare("SELECT count(*) AS n FROM bookings WHERE series_id=? AND status='cancelled'").bind(old.id).first()).toEqual({n:2});
+  expect((await request(route,"PUT",body,old.headers)).status).toBe(200);
+  expect(await db.prepare("SELECT count(*) AS n FROM bookings").first()).toEqual({n:5});
+  const Cookie="slotiva_customer="+session;
+  expect((await request("/api/bookings/"+replacement.bookings[0].id,"GET",undefined,{Cookie})).status).toBe(200);
+  expect((await request("/api/bookings/"+replacement.bookings[2].id,"GET",undefined,{Cookie})).status).toBe(404);
+  expect(await db.prepare("SELECT count(*) AS n FROM clients").first()).toEqual({n:1});
+ });
+ it("preserves every original occurrence when a replacement conflicts",async()=>{
+  const old=await series();
+  expect((await request("/api/bookings","POST",payload("14:00"))).status).toBe(201);
+  const body={date:day(),time:"14:00",frequency:"weekly",count:3,requestId:crypto.randomUUID(),versions:old.bookings.map(b=>({id:b.id,version:b.version}))};
+  expect((await request("/api/admin/series/"+old.id,"PUT",body,old.headers)).status).toBe(409);
+  expect(await db.prepare("SELECT count(*) AS n FROM bookings WHERE series_id=? AND status='confirmed' AND version=1").bind(old.id).first()).toEqual({n:2});
+  expect(await db.prepare("SELECT status FROM booking_series WHERE id=?").bind(old.id).first()).toEqual({status:"active"});
+ });
+ it("rejects stale versions after a single occurrence is cancelled",async()=>{
+  const old=await series();
+  await request("/api/admin/bookings/"+old.bookings[0].id,"DELETE",undefined,old.headers);
+  const body={date:day(),time:"14:00",frequency:"weekly",count:3,requestId:crypto.randomUUID(),versions:old.bookings.map(b=>({id:b.id,version:b.version}))};
+  expect((await request("/api/admin/series/"+old.id,"PUT",body,old.headers)).status).toBe(409);
+  expect(await db.prepare("SELECT count(*) AS n FROM bookings WHERE series_id=? AND status='confirmed'").bind(old.id).first()).toEqual({n:1});
+ });
+ it("keeps agreed service terms after the catalogue changes",async()=>{
+  const old=await series();
+  await db.prepare("UPDATE professional_services SET duration_minutes=45,version=version+1 WHERE professional_id='demo' AND id='discovery'").run();
+  try{
+   const body={date:day(),time:"14:00",frequency:"weekly",count:2,requestId:crypto.randomUUID(),versions:old.bookings.map(b=>({id:b.id,version:b.version}))};
+   const response=await request("/api/admin/series/"+old.id,"PUT",body,old.headers);
+   expect(response.status).toBe(200);
+   const saved=await response.json() as {bookings:{serviceDuration:number;serviceVersion:number}[]};
+   expect(saved.bookings.every(b=>b.serviceDuration===30&&b.serviceVersion===1)).toBe(true);
+  }finally{
+   await db.prepare("UPDATE professional_services SET duration_minutes=30,version=version+1 WHERE professional_id='demo' AND id='discovery'").run();
+  }
+ });
 });

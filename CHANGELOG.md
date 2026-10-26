@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Versioned, idempotent editing of future recurring agreements preserves history,
+  agreed service snapshots and per-occurrence customer access. Conflicts roll back
+  every replacement rather than leave a partial series.
+- Calendar review detects linked events moved or deleted outside Slotiva without
+  silently recreating them. Replacement checks exclude only the exact linked event.
+
 - Clarifies that manual booking confirmation and external notice delivery are
   separate; the receipt no longer incorrectly claims no email or invitation is sent.
 

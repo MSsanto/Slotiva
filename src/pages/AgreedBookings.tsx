@@ -29,6 +29,9 @@ export default function AgreedBookings() {
       );
       setRequestId(crypto.randomUUID());
       void client.invalidateQueries({ queryKey: ["admin", "bookings"] });
+      void client.invalidateQueries({ queryKey: ["admin","series"] });
+      void client.invalidateQueries({ queryKey: ["admin","clients"] });
+      void client.invalidateQueries({ queryKey: ["admin","client-links"] });
       void client.invalidateQueries({ queryKey: ["availability"] });
     },
   });

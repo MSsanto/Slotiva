@@ -153,3 +153,11 @@ References: [OAuth web-server flow](https://developers.google.com/identity/proto
 Event references: [Insert](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert),
 [Delete](https://developers.google.com/workspace/calendar/api/v3/reference/events/delete),
 [Resource versions](https://developers.google.com/workspace/calendar/api/guides/version-resources).
+
+## Reviewing external changes
+
+Use Conferir alterações no Google to queue a check of future linked events. Moved
+or deleted events are reported for review without silently recreating or overwriting
+them. Replacement checks ignore only the exact linked Slotiva event. Nonmatching
+metadata, malformed responses and excessive pagination fail closed. All-day events
+without timezone information are checked conservatively and may need manual review.

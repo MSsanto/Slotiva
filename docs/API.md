@@ -347,8 +347,8 @@ through `POST /api/admin/booking-changes/:id/approve` or `/reject` with `{versio
 An approval checks Google availability and atomically cancels the original,
 creates a confirmed one-off replacement with the same immutable service terms,
 and transfers current browser grants. The old capability also authorizes the
-replacement. Outbox and Calendar jobs follow both transitions. A conflicting slot,
-changed service or stale original version rolls back all changes. Repeating the
+replacement. Outbox and Calendar jobs follow both transitions. A conflicting slot or stale original version rolls back all changes. Explicit
+replacements preserve agreed terms even if the catalogue has changed. Repeating the
 same decision/version returns the committed result. Cancellation of the original
 cancels a pending proposal. Proposals expire after 24 hours; they cannot be approved
 once the original or proposed meeting has started. A confirmed recurring occurrence
@@ -408,3 +408,30 @@ Professionals review own requests through GET /api/admin/privacy and guarded
 PUT /api/admin/privacy/:id `{state:"reviewing"|"closed",version}`. These states
 track human review, not proof of deletion. Define the professional's retention
 policy and external-provider erasure procedure before real customer operation.
+
+
+## Editing recurring agreements and Calendar review
+
+GET /api/admin/series lists own active weekly/fortnightly agreements with their
+confirmed future booking versions. PUT /api/admin/series/:id takes
+{date,time,frequency,count,requestId,versions:[{id,version}]} and exact Origin.
+It replaces only confirmed future occurrences in one D1 batch. Conflicts or stale
+booking/client associations roll back the whole change. Repeating the same request
+returns its committed result. Mixed contacts/terms require individual handling.
+
+Migration 0017 records explicit replacement lineage. Agreed immutable service terms
+are preserved even when the catalogue changes; this exception does not allow new
+public requests to select obsolete prices. Old grants transfer only by occurrence
+index; newly added occurrences do not inherit another booking's access merely
+because the email matches. The existing client identity is retained without
+creating an unused duplicate. History stays unchanged.
+
+POST /api/admin/calendar/reconcile queues own future synced confirmations for
+review. Externally moved/deleted events become visible errors; the worker does not
+silently recreate deleted events. A local cancellation accepts an already-deleted
+tombstone as complete. Replacement availability ignores only the exact deterministic
+event ID with matching private booking metadata, never unrelated collisions.
+Event listing is bounded to four pages of 2500 resources and fails closed on
+malformed responses or additional pages. All-day events use conservative global-day
+bounds when their calendar timezone is absent, which may require manual review.
+Google edits are reviewed, not automatically imported as confirmed patient changes.
