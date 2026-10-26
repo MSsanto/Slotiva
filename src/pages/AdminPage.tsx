@@ -51,6 +51,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
   const [bookingTab, setBookingTab] = useState<AgendaTab>("today");
+  const [futureMonth, setFutureMonth] = useState("");
   const [today, setToday] = useState(brasiliaDate);
   useEffect(() => {
     const update = () => setToday(brasiliaDate());
@@ -90,6 +91,7 @@ export default function AdminPage() {
     mutationFn: () => api("/admin/logout", { method: "POST" }),
     onSuccess: () => {
       setBookingTab("today");
+      setFutureMonth("");
       client.removeQueries({ queryKey: ["admin"] });
       void client.invalidateQueries({ queryKey: ["session"] });
     },
@@ -232,7 +234,17 @@ export default function AdminPage() {
     );
   if (session.data?.role === "master") return <Navigate to="/master" replace />;
   const groups = groupAgenda(bookings.data ?? [], today);
-  const visibleBookings = groups[bookingTab];
+  const currentMonth = today.slice(0, 7);
+  const selectedMonth =
+    futureMonth >= currentMonth
+      ? futureMonth
+      : (groups.future[0]?.date.slice(0, 7) ?? currentMonth);
+  const visibleBookings =
+    bookingTab === "future"
+      ? groups.future.filter((booking) =>
+          booking.date.startsWith(`${selectedMonth}-`),
+        )
+      : groups[bookingTab];
   const bookingTabs = [
     { id: "today", label: "Hoje", count: groups.today.length },
     { id: "future", label: "Futuros", count: groups.future.length },
@@ -241,7 +253,7 @@ export default function AdminPage() {
   ] as const;
   const emptyMessages: Record<AgendaTab, string> = {
     today: "Nenhum agendamento para hoje.",
-    future: "Nenhum agendamento futuro.",
+    future: "Nenhum agendamento futuro neste mês.",
     cancelled: "Nenhuma reserva cancelada.",
     history: "Nenhum agendamento anterior.",
   };
@@ -326,6 +338,28 @@ export default function AdminPage() {
         aria-labelledby={`bookings-tab-${bookingTab}`}
         tabIndex={0}
       >
+        {bookingTab === "future" && (
+          <div className="future-month">
+            <label>
+              Mês dos agendamentos
+              <input
+                type="month"
+                min={currentMonth}
+                value={selectedMonth}
+                onChange={(event) => setFutureMonth(event.target.value)}
+              />
+            </label>
+            {bookings.isSuccess && (
+              <p className="hint" role="status">
+                {visibleBookings.length}{" "}
+                {visibleBookings.length === 1
+                  ? "agendamento neste mês"
+                  : "agendamentos neste mês"}{" "}
+                · {groups.future.length} no total em Futuros.
+              </p>
+            )}
+          </div>
+        )}
         {bookings.isPending ? (
           <p role="status">Carregando reservas…</p>
         ) : bookings.isError ? null : visibleBookings.length === 0 ? (

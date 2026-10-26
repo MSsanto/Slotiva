@@ -344,6 +344,13 @@ test("agenda filters today, future, cancelled and history with Brasília midnigh
       time: "09:00",
     },
     {
+      id: "next-year-confirmed",
+      status: "confirmed",
+      name: "January fixture",
+      date: "2027-01-08",
+      time: "11:00",
+    },
+    {
       id: "past-confirmed",
       status: "confirmed",
       name: "History fixture",
@@ -407,7 +414,7 @@ test("agenda filters today, future, cancelled and history with Brasília midnigh
   });
   await page.goto("/admin");
   const today = page.getByRole("tab", { name: "Hoje (2)", exact: true });
-  const future = page.getByRole("tab", { name: "Futuros (1)", exact: true });
+  const future = page.getByRole("tab", { name: "Futuros (2)", exact: true });
   const cancelled = page.getByRole("tab", {
     name: "Cancelados (1)",
     exact: true,
@@ -422,6 +429,17 @@ test("agenda filters today, future, cancelled and history with Brasília midnigh
   await today.press("ArrowRight");
   await expect(future).toBeFocused();
   await expect(panel).toContainText("Future fixture");
+  const month = panel.getByLabel("Mês dos agendamentos");
+  await expect(month).toHaveValue("2026-10");
+  await expect(panel).not.toContainText("January fixture");
+  await expect(panel).toContainText("1 agendamento neste mês · 2 no total");
+  await month.fill("2027-01");
+  await expect(panel).toContainText("January fixture");
+  await expect(panel).not.toContainText("Future fixture");
+  await month.fill("2026-11");
+  await expect(panel).toContainText("Nenhum agendamento futuro neste mês.");
+  await expect(panel).toContainText("0 agendamentos neste mês · 2 no total");
+  await future.focus();
   await future.press("ArrowRight");
   await expect(cancelled).toBeFocused();
   await expect(panel).toContainText("Cancelled fixture");
@@ -430,6 +448,9 @@ test("agenda filters today, future, cancelled and history with Brasília midnigh
   await expect(history).toBeFocused();
   await expect(panel).toContainText("History fixture");
   await expect(panel.getByRole("button")).toHaveCount(0);
+  await future.click();
+  await expect(month).toHaveValue("2026-11");
+  await history.click();
   await history.press("ArrowRight");
   await expect(today).toBeFocused();
   await today.press("ArrowLeft");
@@ -451,7 +472,8 @@ test("agenda filters today, future, cancelled and history with Brasília midnigh
   await page.reload();
   await expect(panel).toHaveText("Nenhum agendamento para hoje.");
   await page.getByRole("tab", { name: "Futuros (0)", exact: true }).click();
-  await expect(panel).toHaveText("Nenhum agendamento futuro.");
+  await expect(panel).toContainText("Nenhum agendamento futuro neste mês.");
+  await expect(month).toHaveValue("2026-10");
   await page.getByRole("tab", { name: "Cancelados (0)", exact: true }).click();
   await expect(panel).toHaveText("Nenhuma reserva cancelada.");
   await page.getByRole("tab", { name: "Histórico (0)", exact: true }).click();

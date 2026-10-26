@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Adds month selection to Futuros, with a monthly count and the total across
+  future months. The initial month contains the next reservation.
+- Preview acceptance confirmed Google event creation, recipient invitations and
+  cancellation delivery with a real account.
+
 ### Calendar event synchronization
 
 - Explicit owned-event consent; existing read-only connections require reauthorization.

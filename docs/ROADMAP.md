@@ -14,9 +14,9 @@
 
 ## Calendar and delivery
 
-- Validate event creation, Google invitation delivery, cancellation and reconnect
-  against real Google accounts in Preview. Code and synthetic-provider tests cover
-  these flows, including stable IDs, retries and conflicts before confirmation.
+- Event creation, invitations and cancellation were accepted with a real Google
+  account in Preview. Validate revocation/reconnect, outage recovery and conflict
+  handling against Google; synthetic-provider tests already cover these cases.
 - Reflect external busy intervals in public slot selection; confirmation already
   checks Google when write-enabled Calendar is connected.
 - Reconcile edits made directly in Google; reservations currently change in Slotiva.

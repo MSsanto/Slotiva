@@ -25,7 +25,7 @@ Google invitations, and propagates Slotiva cancellations. Explicit write consent
 is required, including for previously connected accounts. External conflicts are
 checked before approval and professional series creation; public availability
 still uses Slotiva's schedule. Delivery failures appear separately from booking
-status. Real Google delivery still needs Preview acceptance. Customer self-service
+status. Google event creation, invitations and cancellation were validated in Preview. Customer self-service
 currently depends on a token held in browser memory and is lost on reload.
 See the [roadmap](docs/ROADMAP.md).
 
